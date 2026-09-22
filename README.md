@@ -10,6 +10,8 @@
 > ✨ Interface moderne : cartes vitrées, jauges animées, **graphiques d'historique**,
 > **icône de barre de menus** et **rappels de nettoyage** — 100 % SwiftUI, 100 % natif.
 
+— **Auteur : Martial Zinsou** —
+
 ---
 
 ## Fonctionnalités
@@ -179,3 +181,9 @@ classDiagram
 ## Licence
 
 Distribué sous licence MIT. Voir le fichier `LICENSE` pour plus d'informations.
+
+---
+
+## Auteur
+
+**Martial Zinsou** — Développeur et auteur de MonitorMyMac.

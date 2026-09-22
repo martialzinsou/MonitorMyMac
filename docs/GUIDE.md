@@ -5,6 +5,8 @@ nettoyer et optimiser votre Mac — simplement et avec une interface élégante.
 
 > 🖥️ **Ce guide est illustré** : chaque étape est accompagnée de captures
 > d'écran réelles de l'application.
+>
+> 👤 **Auteur : Martial Zinsou**
 
 ---
 
@@ -186,3 +188,7 @@ Oui. L'application est 100 % native et universelle (Intel & Apple Silicon).
 | Nettoyage partiel | Exécutez le script CLI en `sudo` (voir doc technique) |
 
 Besoin d'aide ? Consultez la [documentation technique](DOCUMENTATION.md).
+
+---
+
+*Auteur : **Martial Zinsou***

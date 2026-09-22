@@ -1,5 +1,6 @@
 // ============================================================================
 //  MonitorMyMac — Application native macOS (SwiftUI)
+//  Auteur : Martial Zinsou
 //  ============================================================================
 //
 //  ARCHITECTURE GÉNÉRALE
@@ -1246,7 +1247,7 @@ struct ContentView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             Spacer()
-            Text("v2.1.0 · 100 % natif")
+            Text("v2.1.0 · 100 % natif · auteur : Martial Zinsou")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -1821,6 +1822,7 @@ struct HelpView: View {
                     Text("Découvrez tout ce que MonitorMyMac peut faire pour vous")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
+                        .help("Auteur : Martial Zinsou")
                 }
                 Spacer()
             }
@@ -1866,8 +1868,7 @@ struct HelpView: View {
             Divider()
 
             HStack {
-                Text("Astuce : placez l'application dans Applications pour lancer "
-                     + "« MonitorMyMac » depuis Spotlight (⌘Espace).")
+                Text("Créé par Martial Zinsou · 100 % natif macOS")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()

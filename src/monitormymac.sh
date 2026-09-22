@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================================
 #  MonitorMyMac - Monitoring & Optimization Tool for macOS
+#  Auteur : Martial Zinsou
 #  Version: 1.0.0
 #  Description:
 #    MonitorMyMac est un outil simple et natif pour macOS permettant de :

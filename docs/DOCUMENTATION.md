@@ -3,6 +3,8 @@
 Documentation destinée aux développeurs souhaitant comprendre, modifier ou
 étendre MonitorMyMac.
 
+> **Auteur : Martial Zinsou**
+
 ---
 
 ## 1. Architecture
@@ -390,3 +392,7 @@ bash -n src/monitormymac.sh      # valide la syntaxe
 | 1.0.0 | 2025 | Outil CLI bash + bundle .app |
 | 2.0.0 | 2025 | Réécriture **SwiftUI** : interface élégante, jauges animées, statistiques en temps réel |
 | 2.1.0 | 2025 | **Barre de menus**, **graphiques d'historique** (CPU/RAM), **rappels hebdomadaires** |
+
+---
+
+*Auteur : **Martial Zinsou***
