@@ -1,47 +1,59 @@
 # MonitorMyMac
 
 [![macOS](https://img.shields.io/badge/macOS-10.15%2B-blue)](https://www.apple.com/macos/)
-[![Version](https://img.shields.io/badge/version-1.0.0-green)]()
+[![Version](https://img.shields.io/badge/version-2.0.0-green)]()
+[![Language](https://img.shields.io/badge/language-SwiftUI-orange)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow)]()
 
-**MonitorMyMac** est une application native macOS qui permet de **surveiller** et **optimiser** son Mac de manière simple et rapide.
+**MonitorMyMac** est une application **native macOS** élégante et conviviale qui vous permet de **surveiller**, **nettoyer** et **optimiser** votre Mac en un clin d'œil.
+
+> ✨ Interface moderne : cartes vitrées, jauges animées, statistiques en temps réel
+> et mode sombre/clair automatique — le tout en **SwiftUI** 100 % natif.
 
 ---
 
 ## Fonctionnalités
 
-| Catégorie | Fonction | Description |
-|---|---|---|
-| 📊 **Monitoring** | Informations système | Modèle, processeur, mémoire, UUID, SMC |
-| 📊 **Monitoring** | CPU | Marque, modèle et nombre de cœurs |
-| 📊 **Monitoring** | Mémoire (RAM) | Pages libres, actives, compressées |
-| 📊 **Monitoring** | Disque | Utilisation et espace disponible par volume |
-| 🧹 **Nettoyage** | Caches | Suppression des caches utilisateur (.cache / .log) |
-| 🧹 **Nettoyage** | Fichiers temporaires | Nettoyage de `/tmp` (> 60 min) |
-| 🧹 **Nettoyage** | Logs système | Suppression des logs de plus de 24h |
-| 🧹 **Nettoyage** | Corbeille | Vider la corbeille automatiquement |
-| ⚡ **Optimisation** | Gros fichiers | Détection des fichiers > 100 Mo pour libérer de l'espace |
+### 📊 Surveillance en temps réel
+| Fonction | Description |
+|---|---|
+| **Processeur** | Jauge annulaire de l'utilisation CPU + modèle & nombre de cœurs |
+| **Mémoire (RAM)** | Jauge annulaire + Go utilisés / Go disponibles |
+| **Stockage** | Barre de progression + espace utilisé / disponible |
+| **Système** | Modèle, version macOS, mémoire totale, durée d'activité |
+| **Rafraîchissement** | Mises à jour automatiques toutes les 2 secondes + bouton d'actualisation |
+
+### 🧹 Nettoyage intelligent
+| Fonction | Description |
+|---|---|
+| **Fichiers temporaires** | Nettoyage de `/tmp` (plus de 60 min) |
+| **Caches utilisateur** | Suppression des caches `.cache` / `.log` (plus de 2 h) |
+| **Logs système** | Logs de plus de 24 h (selon les permissions) |
+| **Corbeille** | Vidage automatique de la corbeille |
+
+### ⚡ Optimisation
+| Fonction | Description |
+|---|---|
+| **Analyse de l'espace** | Détection des fichiers volumineux (> 100 Mo) dans Downloads, Documents et Bureau |
 
 ---
 
 ## Démarrage rapide
 
-### Option 1 : Exécuter directement la source (recommandé pour les développeurs)
-
-```bash
-chmod +x src/monitormymac.sh
-./src/monitormymac.sh
-```
-
-### Option 2 : Lancer l'application macOS
+### Option 1 : Lancer l'application macOS (recommandé)
 
 ```bash
 open MonitorMyMac.app
 ```
 
-### Option 3 : Depuis le Finder
+Ou double-cliquez simplement sur `MonitorMyMac.app` dans le Finder.
 
-Double-cliquez sur `MonitorMyMac.app`.
+### Option 2 : Compiler depuis la source (développeurs)
+
+```bash
+swiftc -parse-as-library src/MonitorMyMacApp.swift -framework SwiftUI \
+  -o MonitorMyMac.app/Contents/MacOS/MonitorMyMac
+```
 
 ---
 
@@ -53,9 +65,10 @@ MonitorMyMac/
 │   └── Contents/
 │       ├── Info.plist          # Fichier de configuration du bundle
 │       └── MacOS/
-│           └── MonitorMyMac    # Script exécutable principal
+│           └── MonitorMyMac    # Binaire natif SwiftUI compilé
 ├── src/
-│   └── monitormymac.sh         # Code source principal
+│   ├── MonitorMyMacApp.swift   # Code source principal (SwiftUI)
+│   └── monitormymac.sh         # Ancien outil CLI (bonus)
 ├── docs/
 │   ├── GUIDE.md                # Guide utilisateur
 │   └── DOCUMENTATION.md        # Documentation technique
@@ -72,29 +85,13 @@ MonitorMyMac/
 
 ---
 
-## Exemple de sortie
+## Aperçu de l'interface
 
-```
-=========================================
-MonitorMyMac v1.0.0 - Monitoring & Optimization
-=========================================
-
---- Informations Systeme ---
-    Model Name: MacBook Pro
-    Processor Name: Quad-Core Intel Core i7
-    Memory: 16 GB
-    ...
-
---- Utilisation du Disque ---
-Filesystem     Size  Used  Avail Capacity
-/dev/disk1s4s1 954Gi 21Gi  640Gi    4%
-
---- Nettoyage des Caches et Fichiers Temporaires ---
-[OK] /tmp nettoyé (fichiers de plus de 60 min)
-[OK] Caches utilisateur nettoyés (fichiers de plus de 2h)
-[OK] Logs système nettoyés (plus de 24h)
-[OK] Corbeille vidée
-```
+- **En-tête** : logo dégradé, titre, bouton de rafraîchissement
+- **Onglets** : `Surveillance` · `Nettoyage` · `Optimisation`
+- **Grille de cartes** : jauges animées et informations système
+- **Journal** : liste des actions effectuées
+- **Pied de page** : statut en direct de l'application
 
 ---
 

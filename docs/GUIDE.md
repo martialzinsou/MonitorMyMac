@@ -1,6 +1,6 @@
 # Guide Utilisateur - MonitorMyMac
 
-Bienvenue dans **MonitorMyMac**, votre assistant personnel pour surveiller et optimiser votre Mac.
+Bienvenue dans **MonitorMyMac**, votre assistant personnel pour surveiller, nettoyer et optimiser votre Mac — simplement et avec une interface élégante.
 
 ---
 
@@ -9,82 +9,92 @@ Bienvenue dans **MonitorMyMac**, votre assistant personnel pour surveiller et op
 ### 1.1 Installation
 
 1. Téléchargez le dossier `MonitorMyMac`.
-2. Placez-le dans votre dossier `Applications` ou n'importe où sur votre disque.
+2. Placez-le dans votre dossier `Applications` (ou n'importe où sur votre disque).
 3. Double-cliquez sur `MonitorMyMac.app` pour lancer l'application.
 
-> **Astuce** : Si macOS bloque l'ouverture, faites un clic droit sur l'application puis
-> choisissez **Ouvrir** pour autoriser l'exécution.
+> **Astuce** : Si macOS bloque l'ouverture, faites un clic droit sur l'application
+> puis choisissez **Ouvrir** pour autoriser l'exécution.
 
-### 1.2 Lancement depuis le terminal (alternative)
+---
 
-```bash
-cd /chemin/vers/MonitorMyMac
-chmod +x src/monitormymac.sh
-./src/monitormymac.sh
+## 2. L'interface
+
+L'application s'ouvre sur une fenêtre moderne et minimaliste composée de :
+
+| Zone | Rôle |
+|---|---|
+| **En-tête** | Logo, titre, indicateur d'activité et bouton d'actualisation |
+| **Onglets** | `Surveillance` · `Nettoyage` · `Optimisation` |
+| **Cartes** | Jauges animées et statistiques en direct |
+| **Journal** | Suivi de toutes les actions effectuées |
+| **Pied de page** | Statut en direct de l'application |
+
+### 2.1 Onglet Surveillance
+
+Les cartes se **mettent à jour automatiquement toutes les 2 secondes** :
+
+- **Processeur** : jauge annulaire du taux d'utilisation, modèle et nombre de cœurs.
+- **Mémoire** : jauge annulaire + mémoire utilisée / totale.
+- **Stockage** : barre de progression de l'espace disque.
+- **Système** : modèle du Mac, version macOS, durée d'activité.
+
+> 💡 Utilisez le bouton **↻** (en haut à droite) pour rafraîchir immédiatement.
+
+### 2.2 Onglet Nettoyage
+
+Cliquez sur **« Nettoyage intelligent »** pour supprimer en toute sécurité :
+
+- les **fichiers temporaires** de `/tmp` (> 60 minutes) ;
+- les **caches utilisateur** (`.cache`, `.log` > 2 heures) ;
+- les **logs système** (> 24 h, si les permissions le permettent) ;
+- la **corbeille**.
+
+### 2.3 Onglet Optimisation
+
+Cliquez sur **« Analyse de l'espace »** pour lister les **fichiers volumineux
+(> 100 Mo)** présents dans vos dossiers Téléchargements, Documents et Bureau.
+Vous pourrez ensuite les supprimer manuellement dans le Finder.
+
+---
+
+## 3. Lire le journal
+
+Chaque action est consignée dans le panneau **Journal** en bas de la fenêtre :
+
+```
+═══════════ NETTOYAGE ═══════════
+  ✦ Fichiers temporaires (/tmp) : 12 élément(s) supprimé(s)
+  ✦ Caches utilisateur : 34 élément(s) supprimé(s)
 ```
 
----
-
-## 2. Utilisation
-
-À chaque lancement, MonitorMyMac effectue automatiquement les étapes suivantes :
-
-### Étape 1 : Surveillance
-
-- **Informations système** : modèle du Mac, processeur, mémoire, identifiants.
-- **État du CPU** : modèle et nombre de cœurs.
-- **Mémoire (RAM)** : dans quelle mesure votre RAM est utilisée.
-- **Disque** : espace restant sur chaque volume.
-
-### Étape 2 : Nettoyage
-
-MonitorMyMac supprime automatiquement :
-
-- Les **fichiers temporaires** dans `/tmp` ayant plus de 60 minutes.
-- Les **caches utilisateur** (`*.cache`, `*.log`) plus anciens que 2 heures.
-- Les **logs système** de plus de 24 heures.
-- La **corbeille** (uniquement vos fichiers, jamais ceux des autres utilisateurs).
-
-### Étape 3 : Optimisation
-
-- MonitorMyMac **liste les gros fichiers** (> 100 Mo) dans Downloads, Documents et
-  Bureau afin que vous puissiez les supprimer manuellement si vous le souhaitez.
+- **Vider le journal** : cliquez sur *Effacer*.
+- **Statut** : le pied de page affiche « Nettoyage terminé ✓ » une fois l'action finie.
 
 ---
 
-## 3. Lire les résultats
+## 4. Foire aux questions
 
-Chaque section est précédée d'un titre clair (`--- Informations Systeme ---`,
-`--- Nettoyage des Caches ---`, etc.).
-
-- `[OK]` : l'action a été effectuée avec succès.
-- `[WARN]` : un outil système n'était pas disponible (peu fréquent).
-
----
-
-## 4. Foire aux questions (FAQ)
-
-### Combien de temps dure une analyse ?
-Moins de 30 secondes en général.
+### Combien de temps dure un nettoyage ?
+Quelques secondes seulement.
 
 ### Est-ce que MonitorMyMac peut endommager mon Mac ?
-Non. Il ne supprime que des fichiers temporaires et des caches, similaires à ce
-que les outils système d'Apple recommandent de nettoyer régulièrement.
+**Non.** Il ne supprime que des fichiers temporaires et des caches, comme le
+recommande Apple. Il ne touche jamais à vos documents, photos ou applications.
+
+### Les statistiques sont-elles en direct ?
+Oui, les cartes CPU, Mémoire et Stockage se rafraîchissent toutes les 2 secondes.
 
 ### Mes fichiers personnels seront-ils supprimés ?
-Non. MonitorMyMac ne touche **jamais** à vos documents, photos ou applications.
-La corbeille n'est vidée que si elle contient vos propres fichiers.
+Non. La corbeille n'est vidée que si elle contient vos propres fichiers, et
+aucun répertoire personnel n'est modifié.
 
 ### Puis-je utiliser MonitorMyMac avec des droits admin ?
-Le nettoyage des logs système peut nécessiter des droits élevés sur certains
-systèmes. Lancez le script avec `sudo` si nécessaire :
-
-```bash
-sudo src/monitormymac.sh
-```
+Le nettoyage des logs système (`/private/var/log`) peut nécessiter des droits
+élevés. Sur certains systèmes, cliquez sur l'application avec **clic droit →
+Ouvrir** une fois pour lui accorder les permissions demandées.
 
 ### Est-ce compatible avec Apple Silicon (M1/M2/M3) ?
-Oui. Le script utilise uniquement des outils natifs disponibles sur macOS.
+Oui. L'application est 100 % native et universelle (Intel & Apple Silicon).
 
 ---
 
@@ -92,9 +102,8 @@ Oui. Le script utilise uniquement des outils natifs disponibles sur macOS.
 
 | Problème | Solution |
 |---|---|
-| L'application ne s'ouvre pas | Faites un clic droit → **Ouvrir** |
-| Aucune information affichée | Vérifiez que `/usr/sbin/system_profiler` existe |
-| Nettoyage partiel | Relancez le script avec `sudo` |
+| L'application ne s'ouvre pas | Clic droit → **Ouvrir**, puis confirmer |
+| Les jauges restent à 0 % | Relancez l'application (mise à jour automatique) |
+| Nettoyage partiel | Exécutez le script CLI en `sudo` (voir doc technique) |
 
-Pour plus d'aide, reportez-vous à la [documentation technique](DOCUMENTATION.md)
-ou ouvrez un ticket sur le dépôt GitHub.
+Besoin d'aide ? Consultez la [documentation technique](DOCUMENTATION.md).
