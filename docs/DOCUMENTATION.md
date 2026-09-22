@@ -16,22 +16,27 @@ Elle utilise exclusivement les utilitaires et frameworks système Apple
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  MonitorMyMacApp  (@main, App)                             │
-│  └── ContentView  (ZStack → header / tabs / content / log) │
+│  MonitorMyMacApp  (@main, App + @NSApplicationDelegateAdaptor)
+│  ├── AppLifecycleDelegate   → pont vers MenuBarDelegate.shared
+│  ├── MenuBarDelegate        → NSStatusItem + menu + notifications
+│  └── ContentView            (header / tabs / content / log)
 │      ├── Surveillance → LazyVGrid de cartes (maison)       │
 │      │     ├── GaugeCard   (anneau animé CPU/RAM)          │
 │      │     ├── DiskCard    (barre de progression)          │
-│      │     └── SystemCard  (infos statiques)               │
+│      │     ├── SystemCard  (infos statiques)               │
+│      │     └── HistoryChartCard (sparklines CPU/RAM)       │
 │      ├── Nettoyage   → CleanupView (+ ActionButton)        │
 │      └── Optimisation → OptimizationView (+ ActionButton)  │
 │                                                              │
-│  SystemMonitor (ObservableObject)                           │
+│  SystemMonitor (ObservableObject singleton)                 │
 │  ├── Timer → refreshMetrics() toutes les 2 s                │
+│  ├── cpuHistory/memoryHistory (60 points = 2 min)           │
 │  ├── CPU.usage()      → top -l 1 -n 0 -s 0                 │
 │  ├── Memory.usage()   → vm_stat + hw.memsize               │
 │  ├── Disk.usage()     → df -h /                            │
 │  ├── Device.*         → sysctl / system_profiler           │
-│  └── Cleaner.*        → find / rm / FileManager            │
+│  ├── Cleaner.*        → find / rm / FileManager            │
+│  └── Reminder.*       → UserNotifications (rappels)        │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,15 +58,19 @@ Fichier : `src/MonitorMyMacApp.swift`
 
 | Élément | Rôle |
 |---|---|
-| `SystemMonitor` | Service observable au cœur de l'interface |
+| `SystemMonitor` | Service observable **singleton** au cœur de l'interface |
+| `MenuBarDelegate` | `NSStatusItem` + menu déroulant + délégué notifications |
+| `AppLifecycleDelegate` | Pont entre le cycle de vie SwiftUI et la barre de menus |
 | `Metric` | Modèle d'une statistique (ratio 0...1) |
 | `CPU` | Calcule le taux CPU à partir de `top` |
 | `Memory` | Calcule la RAM utilisée via `vm_stat` |
 | `Disk` | Calcule l'espace disque via `df` |
 | `Device` | Informations statiques (modèle, macOS, uptime) |
 | `Cleaner` | Opérations de nettoyage / optimisation |
+| `Reminder` | Rappels hebdomadaires via `UserNotifications` |
 | `ContentView` | Interface principale et navigation par onglets |
 | `GaugeCard` / `DiskCard` / `SystemCard` | Cartes de surveillance |
+| `HistoryChartCard` / `HistoryChart` / `SparklinePath` | Graphiques d'historique |
 | `ActionButton` / `CleanupView` / `OptimizationView` | Vues d'action |
 
 ### 2.2 Points techniques importants
@@ -85,7 +94,8 @@ Fichier : `src/MonitorMyMacApp.swift`
 ### 3.1 Depuis la ligne de commande (sans Xcode)
 
 ```bash
-swiftc -parse-as-library src/MonitorMyMacApp.swift -framework SwiftUI \
+swiftc -parse-as-library src/MonitorMyMacApp.swift \
+  -framework SwiftUI -framework AppKit -framework UserNotifications \
   -o MonitorMyMac.app/Contents/MacOS/MonitorMyMac
 ```
 
@@ -198,3 +208,4 @@ bash -n src/monitormymac.sh      # valide la syntaxe
 |---|---|---|
 | 1.0.0 | 2025 | Outil CLI bash + bundle .app |
 | 2.0.0 | 2025 | Réécriture **SwiftUI** : interface élégante, jauges animées, statistiques en temps réel |
+| 2.1.0 | 2025 | **Barre de menus**, **graphiques d'historique** (CPU/RAM), **rappels hebdomadaires** |

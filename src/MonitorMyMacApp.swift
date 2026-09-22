@@ -11,6 +11,8 @@
 // ============================================================================
 
 import SwiftUI
+import AppKit
+import UserNotifications
 import Foundation
 
 // ============================================================================
@@ -25,6 +27,9 @@ struct Metric {
 
 /// Service métier : collecte des métriques et opérations de maintenance.
 final class SystemMonitor: ObservableObject {
+
+    /// Instance partagée (barre de menus + interface).
+    static let shared = SystemMonitor()
 
     // Métriques exposées à l'interface
     @Published var cpuUsage: Double = 0
@@ -42,9 +47,27 @@ final class SystemMonitor: ObservableObject {
     @Published var log: String = ""
     @Published var statusMessage: String = "Prêt"
     @Published var isProcessing = false
+    @Published var cpuHistory: [Double] = []
+    @Published var memoryHistory: [Double] = []
+    @Published var remindersEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(remindersEnabled, forKey: "weeklyReminderEnabled")
+            if remindersEnabled {
+                Reminder.scheduleWeeklyCleanup()
+            } else {
+                Reminder.cancelWeeklyCleanup()
+            }
+        }
+    }
 
     // Gestion du rafraîchissement en direct
     private var refreshTimer: Timer?
+    /// Nombre maximal de points d'historique (2 minutes à 2 s = 60 points).
+    private let historyCapacity = 60
+
+    private init() {
+        remindersEnabled = UserDefaults.standard.bool(forKey: "weeklyReminderEnabled")
+    }
 
     // -------------------------------------------------------------------------
     //  Démarrage et rafraîchissement live
@@ -56,6 +79,7 @@ final class SystemMonitor: ObservableObject {
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.refreshMetrics()
+            self?.refreshMenuBar()
         }
     }
 
@@ -67,6 +91,22 @@ final class SystemMonitor: ObservableObject {
         cpuDetail = String(format: "%.0f %%", cpuUsage * 100)
         memoryDetail = Memory.detail()
         diskDetail = Disk.detail()
+
+        cpuHistory.append(cpuUsage)
+        memoryHistory.append(memoryUsage)
+        if cpuHistory.count > historyCapacity { cpuHistory.removeFirst(cpuHistory.count - historyCapacity) }
+        if memoryHistory.count > historyCapacity { memoryHistory.removeFirst(memoryHistory.count - historyCapacity) }
+
+        // Rafraîchit le texte de la barre de menus.
+        MenuBarDelegate.shared.updateQuickStats()
+    }
+
+    // -------------------------------------------------------------------------
+    //  Gestion de la barre de menus
+    // -------------------------------------------------------------------------
+
+    func refreshMenuBar() {
+        MenuBarDelegate.shared.updateQuickStats()
     }
 
     /// Actualisation des informations "statiques" de la machine.
@@ -467,13 +507,218 @@ enum Cleaner {
 }
 
 // ============================================================================
+//  MARK: - Rappels de nettoyage (notifications)
+// ============================================================================
+
+/// Service de rappels hebdomadaires via UserNotifications.
+enum Reminder {
+
+    private static let identifier = "monitormymac.weekly.cleanup"
+
+    /// Demande l'autorisation d'envoyer des notifications.
+    static func requestAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    /// Programme un rappel hebdomadaire (dimanche 10 h) si autorisé.
+    static func scheduleWeeklyCleanup() {
+        requestAuthorization()
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                  settings.authorizationStatus == .provisional else { return }
+
+            let content = UNMutableNotificationContent()
+            content.title = "MonitorMyMac ✨"
+            content.body = "C’est le moment parfait pour un petit nettoyage de votre Mac."
+            content.sound = .default
+            content.userInfo = ["action": "cleanup"]
+
+            var date = DateComponents()
+            date.weekday = 1  // dimanche (1)
+            date.hour = 10
+            date.minute = 0
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+            UNUserNotificationCenter.current().add(request)
+        }
+    }
+
+    /// Annule le rappel hebdomadaire.
+    static func cancelWeeklyCleanup() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+}
+
+// ============================================================================
+//  MARK: - Barre de menus (status item)
+// ============================================================================
+
+/// Gère l'icône et le menu de la barre d'état macOS.
+final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+
+    /// Instance partagée utilisée par l'interface et l'application.
+    static let shared = MenuBarDelegate()
+
+    private var statusItem: NSStatusItem?
+    private let cpuMenuItem = NSMenuItem(title: "CPU —", action: nil, keyEquivalent: "")
+    private let ramMenuItem = NSMenuItem(title: "RAM —", action: nil, keyEquivalent: "")
+    private let diskMenuItem = NSMenuItem(title: "Disque —", action: nil, keyEquivalent: "")
+    private let statusMenuItem = NSMenuItem(title: "Statut : Prêt", action: nil, keyEquivalent: "")
+    private var menuBarTimer: Timer?
+
+    // -------------------------------------------------------------------------
+    //  Démarrage de l'application (NSApplicationDelegate)
+    // -------------------------------------------------------------------------
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        setupStatusItem()
+        UNUserNotificationCenter.current().delegate = self
+        SystemMonitor.shared.startLiveUpdates()
+    }
+
+    // -------------------------------------------------------------------------
+    //  Création de l'élément d'état
+    // -------------------------------------------------------------------------
+
+    private func setupStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = NSImage(
+            systemSymbolName: "macbook.and.iphone",
+            accessibilityDescription: "MonitorMyMac"
+        )
+        item.button?.title = " 0%"
+        item.menu = buildMenu()
+        statusItem = item
+        updateQuickStats()
+    }
+
+    /// Construit le menu déroulant de la barre d'état.
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.delegate = self
+
+        let appItem = NSMenuItem(title: "MonitorMyMac", action: #selector(openMainWindow), keyEquivalent: "")
+        appItem.image = NSImage(systemSymbolName: "macbook.and.iphone", accessibilityDescription: "")
+        menu.addItem(appItem)
+        menu.addItem(.separator())
+
+        statusMenuItem.isEnabled = false
+        menu.addItem(statusMenuItem)
+
+        updateStatusMenuItems()
+        for item in [cpuMenuItem, ramMenuItem, diskMenuItem] {
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+
+        menu.addItem(.separator())
+
+        let cleanItem = NSMenuItem(title: "🧹  Nettoyage rapide", action: #selector(quickCleanup), keyEquivalent: "n")
+        menu.addItem(cleanItem)
+
+        let optimizeItem = NSMenuItem(title: "⚡  Optimisation rapide", action: #selector(quickOptimize), keyEquivalent: "o")
+        menu.addItem(optimizeItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "Quitter", action: #selector(quitApp), keyEquivalent: "q")
+        menu.addItem(quitItem)
+
+        return menu
+    }
+
+    // -------------------------------------------------------------------------
+    //  Mise à jour des statistiques dans la barre de menus
+    // -------------------------------------------------------------------------
+
+    func updateQuickStats() {
+        guard let button = statusItem?.button else { return }
+        let monitor = SystemMonitor.shared
+        button.title = String(format: " %d%%", Int(monitor.cpuUsage * 100))
+        button.toolTip = String(
+            format: "CPU %d %% · RAM %d %% · Disque %d %%",
+            Int(monitor.cpuUsage * 100),
+            Int(monitor.memoryUsage * 100),
+            Int(monitor.diskUsage * 100)
+        )
+
+        cpuMenuItem.title = String(format: "CPU   %d %%", Int(monitor.cpuUsage * 100))
+        ramMenuItem.title = String(format: "RAM   %d %%", Int(monitor.memoryUsage * 100))
+        diskMenuItem.title = String(format: "Disque   %d %%", Int(monitor.diskUsage * 100))
+        statusMenuItem.title = "Statut : \(monitor.statusMessage)"
+    }
+
+    private func updateStatusMenuItems() {
+        cpuMenuItem.isEnabled = false
+        ramMenuItem.isEnabled = false
+        diskMenuItem.isEnabled = false
+    }
+
+    // -------------------------------------------------------------------------
+    //  Actions du menu
+    // -------------------------------------------------------------------------
+
+    @objc private func openMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func quickCleanup() {
+        SystemMonitor.shared.runCleanup()
+        scheduleMenuBarRefresh()
+    }
+
+    @objc private func quickOptimize() {
+        SystemMonitor.shared.runOptimization()
+        scheduleMenuBarRefresh()
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
+    }
+
+    /// Rafraîchit le menu après une action rapide.
+    private func scheduleMenuBarRefresh() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            self?.updateQuickStats()
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    //  Observation du menu (à l'ouverture)
+    // -------------------------------------------------------------------------
+
+    func menuWillOpen(_ menu: NSMenu) {
+        updateQuickStats()
+    }
+
+    // -------------------------------------------------------------------------
+    //  Notifications (UNUserNotificationCenterDelegate)
+    // -------------------------------------------------------------------------
+
+    /// L'utilisateur clique sur un rappel : lance le nettoyage.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.content.userInfo["action"] as? String == "cleanup" {
+            openMainWindow()
+            SystemMonitor.shared.runCleanup()
+        }
+        completionHandler()
+    }
+}
+
+// ============================================================================
 //  MARK: - Vue principale
 // ============================================================================
 
 /// Application élégante : cartes d'informations et actions conviviales.
 struct ContentView: View {
 
-    @StateObject private var monitor = SystemMonitor()
+    @StateObject private var monitor = SystemMonitor.shared
     @State private var selectedTab: Tab = .surveillance
 
     enum Tab: String, CaseIterable {
@@ -631,38 +876,45 @@ struct ContentView: View {
     // -------------------------------------------------------------------------
 
     private var monitoringGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-            GaugeCard(
-                title: "Processeur",
-                subtitle: monitor.cpuName,
-                icon: "cpu",
-                color: .blue,
-                ratio: monitor.cpuUsage,
-                footer: "\(monitor.coreCount) cœurs · \(monitor.cpuDetail)"
-            )
+        VStack(spacing: 16) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                GaugeCard(
+                    title: "Processeur",
+                    subtitle: monitor.cpuName,
+                    icon: "cpu",
+                    color: .blue,
+                    ratio: monitor.cpuUsage,
+                    footer: "\(monitor.coreCount) cœurs · \(monitor.cpuDetail)"
+                )
 
-            GaugeCard(
-                title: "Mémoire",
-                subtitle: "\(monitor.totalMemoryGB)",
-                icon: "memorychip",
-                color: .purple,
-                ratio: monitor.memoryUsage,
-                footer: monitor.memoryDetail
-            )
+                GaugeCard(
+                    title: "Mémoire",
+                    subtitle: "\(monitor.totalMemoryGB)",
+                    icon: "memorychip",
+                    color: .purple,
+                    ratio: monitor.memoryUsage,
+                    footer: monitor.memoryDetail
+                )
 
-            DiskCard(
-                title: "Stockage",
-                icon: "externaldrive",
-                color: .green,
-                ratio: monitor.diskUsage,
-                footer: monitor.diskDetail
-            )
+                DiskCard(
+                    title: "Stockage",
+                    icon: "externaldrive",
+                    color: .green,
+                    ratio: monitor.diskUsage,
+                    footer: monitor.diskDetail
+                )
 
-            SystemCard(
-                title: "Système",
-                osInfo: monitor.osInfo,
-                model: monitor.modelInfo,
-                uptime: monitor.uptime
+                SystemCard(
+                    title: "Système",
+                    osInfo: monitor.osInfo,
+                    model: monitor.modelInfo,
+                    uptime: monitor.uptime
+                )
+            }
+
+            HistoryChartCard(
+                cpuSamples: monitor.cpuHistory,
+                memorySamples: monitor.memoryHistory
             )
         }
     }
@@ -712,7 +964,7 @@ struct ContentView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             Spacer()
-            Text("v2.0.0 · 100 % natif")
+            Text("v2.1.0 · 100 % natif")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -896,6 +1148,120 @@ struct SystemCard: View {
 }
 
 // ============================================================================
+//  MARK: - Carte d'historique (sparklines CPU & RAM)
+// ============================================================================
+
+/// Carte regroupant les graphiques d'évolution CPU / RAM.
+struct HistoryChartCard: View {
+    let cpuSamples: [Double]
+    let memorySamples: [Double]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Historique temps réel", systemImage: "waveform.path.ecg")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+                Text("2 dernières minutes")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            HistoryChart(samples: cpuSamples, color: .blue, title: "Processeur")
+            HistoryChart(samples: memorySamples, color: .purple, title: "Mémoire")
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                )
+        )
+    }
+}
+
+/// Courbe de tendance dessinée à partir d'une série d'échantillons.
+struct HistoryChart: View {
+    let samples: [Double]
+    let color: Color
+    let title: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let last = samples.last {
+                    Text("\(Int(last * 100)) %")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(color)
+                }
+            }
+
+            GeometryReader { geo in
+                let width = geo.size.width
+                let height = geo.size.height
+                let baseline = height * 0.92
+
+                ZStack {
+                    // Ligne de référence à 100 %
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: baseline - baseline))
+                        p.addLine(to: CGPoint(x: width, y: baseline - baseline))
+                    }
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+
+                    SparklinePath(samples: samples)
+                        .stroke(
+                            LinearGradient(
+                                colors: [color, color.opacity(0.5)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                        )
+                        .animation(.easeOut(duration: 0.4), value: samples)
+                }
+            }
+            .frame(height: 34)
+        }
+    }
+}
+
+/// Trace le chemin d'une courbe sparkline pour une série de valeurs.
+struct SparklinePath: Shape {
+    let samples: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard samples.count >= 2 else { return path }
+
+        let width = rect.width
+        let height = rect.height
+        let usableHeight = height * 0.9
+        let bottom = height * 0.95
+        let stepX = width / CGFloat(max(samples.count - 1, 1))
+
+        for (index, sample) in samples.enumerated() {
+            let x = CGFloat(index) * stepX
+            // scale : la valeur va de 0 à 1, 1 étant en haut de la chart
+            let y = bottom - CGFloat(min(max(sample, 0), 1)) * usableHeight
+            if index == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        return path
+    }
+}
+
+// ============================================================================
 //  MARK: - Vues d'actions (nettoyage / optimisation)
 // ============================================================================
 
@@ -970,7 +1336,34 @@ struct CleanupView: View {
                 tipRow(icon: "folder.badge.gearshape", text: "Caches > 2 h")
                 tipRow(icon: "trash", text: "Corbeille vidée")
             }
+
+            reminderToggle
         }
+    }
+
+    private var reminderToggle: some View {
+        Toggle(isOn: $monitor.remindersEnabled) {
+            HStack(spacing: 8) {
+                Image(systemName: monitor.remindersEnabled ? "bell.badge.fill" : "bell.badge")
+                    .font(.system(size: 15))
+                    .foregroundStyle(monitor.remindersEnabled ? Color.pink : Color.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rappel hebdomadaire de nettoyage")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Une notification chaque dimanche à 10 h")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.gray.opacity(0.07))
+            )
+        }
+        .toggleStyle(.switch)
+        .padding(.horizontal, 2)
     }
 
     private func tipRow(icon: String, text: String) -> some View {
@@ -1027,15 +1420,46 @@ struct OptimizationView: View {
 }
 
 // ============================================================================
+//  MARK: - Délégué du cycle de vie de l'application
+// ============================================================================
+
+/// Pont entre le cycle de vie SwiftUI et le singleton de la barre de menus.
+final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MenuBarDelegate.shared.applicationDidFinishLaunching(notification)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // L'application continue de vivre dans la barre de menus.
+        return false
+    }
+}
+
+// ============================================================================
 //  MARK: - Point d'entrée de l'application
 // ============================================================================
 
 @main
 struct MonitorMyMacApp: App {
+    @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) var appDelegate
+
     var body: some Scene {
         WindowGroup("MonitorMyMac") {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandMenu("Actions") {
+                Button("Nettoyage rapide") {
+                    SystemMonitor.shared.runCleanup()
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+
+                Button("Optimisation rapide") {
+                    SystemMonitor.shared.runOptimization()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
+        }
     }
 }

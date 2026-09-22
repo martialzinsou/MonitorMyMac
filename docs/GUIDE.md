@@ -26,6 +26,8 @@ L'application s'ouvre sur une fenêtre moderne et minimaliste composée de :
 | **En-tête** | Logo, titre, indicateur d'activité et bouton d'actualisation |
 | **Onglets** | `Surveillance` · `Nettoyage` · `Optimisation` |
 | **Cartes** | Jauges animées et statistiques en direct |
+| **Historique** | Courbes d'évolution CPU & RAM (2 dernières minutes) |
+| **Barre de menus** | Icône macOS + % CPU, menu et actions rapides |
 | **Journal** | Suivi de toutes les actions effectuées |
 | **Pied de page** | Statut en direct de l'application |
 
@@ -37,6 +39,7 @@ Les cartes se **mettent à jour automatiquement toutes les 2 secondes** :
 - **Mémoire** : jauge annulaire + mémoire utilisée / totale.
 - **Stockage** : barre de progression de l'espace disque.
 - **Système** : modèle du Mac, version macOS, durée d'activité.
+- **Historique temps réel** : deux courbes de tendance (en bleu = CPU, en violet = RAM).
 
 > 💡 Utilisez le bouton **↻** (en haut à droite) pour rafraîchir immédiatement.
 
@@ -49,11 +52,30 @@ Cliquez sur **« Nettoyage intelligent »** pour supprimer en toute sécurité :
 - les **logs système** (> 24 h, si les permissions le permettent) ;
 - la **corbeille**.
 
+💡 Activez le **rappel hebdomadaire** : une notification chaque **dimanche à 10 h**
+vous invitera à lancer un nettoyage. Cliquez sur la notification pour l'exécuter
+immédiatement.
+
 ### 2.3 Onglet Optimisation
 
 Cliquez sur **« Analyse de l'espace »** pour lister les **fichiers volumineux
 (> 100 Mo)** présents dans vos dossiers Téléchargements, Documents et Bureau.
 Vous pourrez ensuite les supprimer manuellement dans le Finder.
+
+### 2.4 Barre de menus
+
+L'icône **🍎 ▸ 23%** (taux CPU en direct) reste visible en haut de l'écran :
+
+| Élément du menu | Action |
+|---|---|
+| **Statut** | État courant (« Prêt », « Nettoyage terminé ✓ »…) |
+| **CPU / RAM / Disque** | Pourcentages en un coup d'œil |
+| **Nettoyage rapide** (`⌘⇧N`) | Lance le nettoyage sans ouvrir la fenêtre |
+| **Optimisation rapide** (`⌘⇧O`) | Lance l'analyse d'espace |
+| **Quitter** | Ferme complètement l'application |
+
+> L'application reste active dans la barre de menus **même quand on ferme la
+> fenêtre**. Utilisez le menu **Quitter** pour l'arrêter totalement.
 
 ---
 
@@ -82,7 +104,17 @@ Quelques secondes seulement.
 recommande Apple. Il ne touche jamais à vos documents, photos ou applications.
 
 ### Les statistiques sont-elles en direct ?
-Oui, les cartes CPU, Mémoire et Stockage se rafraîchissent toutes les 2 secondes.
+Oui, les cartes CPU, Mémoire et Stockage se rafraîchissent toutes les 2 secondes,
+et l'historique affiche leur évolution sur 2 minutes.
+
+### Que se passe-t-il si j'active les rappels ?
+macOS demandera l'autorisation d'envoyer des notifications. Ensuite, un rappel
+sera programmé chaque **dimanche à 10 h**. Cliquer sur la notification lance le
+nettoyage automatiquement.
+
+### Mon Mac s'arrête-t-il quand je ferme la fenêtre ?
+Non. L'application reste dans la **barre de menus** pour un accès rapide.
+Utilisez *Quitter* dans le menu pour fermer complètement l'application.
 
 ### Mes fichiers personnels seront-ils supprimés ?
 Non. La corbeille n'est vidée que si elle contient vos propres fichiers, et
