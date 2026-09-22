@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace
+*.xcodeproj
+build/
+DerivedData/
+
+# Fichiers temporaires
+*.log
+*.tmp
