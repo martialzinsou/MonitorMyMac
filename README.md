@@ -98,7 +98,68 @@ MonitorMyMac/
 
 ## Aperçu de l'interface
 
-- **En-tête** : logo dégradé, titre, bouton de rafraîchissement
+### 📊 Onglet Surveillance
+
+![Onglet Surveillance](docs/screenshots/01-panel-surveillance.png)
+
+### 🧹 Onglet Nettoyage (avec rappel hebdomadaire)
+
+![Onglet Nettoyage](docs/screenshots/02-panel-nettoyage.png)
+
+### ⚡ Onglet Optimisation
+
+![Onglet Optimisation](docs/screenshots/03-panel-optimisation.png)
+
+### 🍎 Barre de menus (CPU en direct)
+
+![Barre de menus](docs/screenshots/04-menu-bar.png)
+
+### ❓ Fenêtre Aide illustrée
+
+![Aide illustrée](docs/screenshots/05-panel-aide.png)
+
+### Architecture (aperçu UML)
+
+```mermaid
+classDiagram
+    class SystemMonitor {
+        <<ObservableObject>>
+        +cpuUsage: Double
+        +memoryUsage: Double
+        +diskUsage: Double
+        +cpuHistory: [Double]
+        +runCleanup()
+        +runOptimization()
+    }
+    class MenuBarDelegate {
+        +updateQuickStats()
+    }
+    class ContentView {
+        -selectedTab: Tab
+    }
+    class Cleaner {
+        <<enum>>
+        +tempFiles()
+        +userCaches()
+        +trash()
+        +largeFiles()
+    }
+    class Reminder {
+        <<enum>>
+        +scheduleWeeklyCleanup()
+    }
+    ContentView --> SystemMonitor : observe
+    SystemMonitor --> MenuBarDelegate : met à jour
+    SystemMonitor --> Cleaner : exécute
+    SystemMonitor --> Reminder : programme
+```
+
+> Diagrammes UML complets (classes, séquence, états, cas d'utilisation) :
+> voir [Documentation technique](docs/DOCUMENTATION.md).
+
+### Éléments de l'interface
+
+- **En-tête** : logo dégradé, titre, bouton **?** (aide) et actualisation
 - **Onglets** : `Surveillance` · `Nettoyage` · `Optimisation`
 - **Grille de cartes** : jauges animées et informations système
 - **Historique** : courbes de tendance CPU & RAM (2 min)
@@ -110,8 +171,8 @@ MonitorMyMac/
 
 ## Documentation
 
-- [Guide utilisateur](docs/GUIDE.md) - Comment utiliser MonitorMyMac au quotidien
-- [Documentation technique](docs/DOCUMENTATION.md) - Architecture et code source
+- [Guide utilisateur illustré](docs/GUIDE.md) - Comment utiliser MonitorMyMac au quotidien
+- [Documentation technique](docs/DOCUMENTATION.md) - Architecture, diagrammes UML et code source
 
 ---
 

@@ -48,6 +48,175 @@ Elle utilise exclusivement les utilitaires et frameworks système Apple
 4. L'utilisateur lance un nettoyage ou une optimisation via les onglets.
 5. Les résultats sont ajoutés au **journal** et le statut est mis à jour.
 
+### 1.3 Diagrammes UML
+
+#### 1.3.1 Diagramme de classes
+
+```mermaid
+classDiagram
+    class MonitorMyMacApp {
+        +body: some Scene
+    }
+    class AppLifecycleDelegate {
+        <<NSApplicationDelegate>>
+        +applicationDidFinishLaunching()
+    }
+    class MenuBarDelegate {
+        <<NSObject, singleton>>
+        -statusItem: NSStatusItem
+        +updateQuickStats()
+        +applicationDidFinishLaunching()
+    }
+    class SystemMonitor {
+        <<ObservableObject, singleton>>
+        +cpuUsage: Double
+        +memoryUsage: Double
+        +diskUsage: Double
+        +cpuHistory: [Double]
+        +memoryHistory: [Double]
+        +remindersEnabled: Bool
+        +startLiveUpdates()
+        +refreshMetrics()
+        +runCleanup()
+        +runOptimization()
+        -refreshTimer: Timer
+    }
+    class CPU {
+        <<enum>>
+        +usage() Double
+    }
+    class Memory {
+        <<enum>>
+        +usage() Double
+        +detail() String
+    }
+    class Disk {
+        <<enum>>
+        +usage() Double
+        +detail() String
+    }
+    class Device {
+        <<enum>>
+        +osVersion() String
+        +macModel() String
+        +cpuModel() String
+        +uptime() String
+    }
+    class Cleaner {
+        <<enum>>
+        +tempFiles() Int
+        +userCaches() Int
+        +systemLogs() Int
+        +trash() Int
+        +largeFiles() [String]
+    }
+    class Reminder {
+        <<enum>>
+        +scheduleWeeklyCleanup()
+        +cancelWeeklyCleanup()
+    }
+    class ContentView {
+        -selectedTab: Tab
+        -showHelp: Bool
+    }
+    class HelpView {
+        +helpSection()
+    }
+    class GaugeCard
+    class DiskCard
+    class SystemCard
+    class HistoryChartCard
+    class HistoryChart
+    class SparklinePath {
+        <<Shape>>
+    }
+    class CleanupView
+    class OptimizationView
+    class ActionButton
+
+    MonitorMyMacApp --> AppLifecycleDelegate : adapte
+    MonitorMyMacApp --> MenuBarDelegate : adapte
+    AppLifecycleDelegate --> MenuBarDelegate : délègue
+    MenuBarDelegate --> SystemMonitor : lit les métriques
+    MenuBarDelegate ..> Cleaner : notifications
+    MonitorMyMacApp --> ContentView : affiche
+    ContentView --> SystemMonitor : observe
+    ContentView --> GaugeCard : utilise
+    ContentView --> DiskCard : utilise
+    ContentView --> SystemCard : utilise
+    ContentView --> HistoryChartCard : utilise
+    ContentView --> CleanupView : onglet
+    ContentView --> OptimizationView : onglet
+    ContentView --> HelpView : sheet
+    HistoryChartCard --> HistoryChart : contient
+    HistoryChart --> SparklinePath : dessine
+    SystemMonitor --> CPU : interroge
+    SystemMonitor --> Memory : interroge
+    SystemMonitor --> Disk : interroge
+    SystemMonitor --> Device : interroge
+    SystemMonitor --> Cleaner : exécute
+    SystemMonitor --> Reminder : programme
+    SystemMonitor --> MenuBarDelegate : met à jour
+```
+
+#### 1.3.2 Diagramme de séquence — Nettoyage intelligent
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Utilisateur
+    participant V as CleanupView
+    participant S as SystemMonitor
+    participant C as Cleaner
+    participant O as Journal
+
+    U->>V: Clic « Nettoyage intelligent »
+    V->>S: runCleanup()
+    activate S
+    S->>S: isProcessing = true
+    S->>C: tempFiles() → /tmp (> 60 min)
+    S->>C: userCaches() → ~/Library/Caches (> 2 h)
+    S->>C: systemLogs() → /private/var/log (> 24 h)
+    S->>C: trash() → ~/.Trash
+    C-->>S: nombre d'éléments supprimés
+    S->>O: Journal : « ✦ … supprimé(s) »
+    S->>S: isProcessing = false, statut mis à jour
+    S-->>V: done
+    deactivate S
+```
+
+#### 1.3.3 Diagramme d'états — cycle de vie du rafraîchissement
+
+```mermaid
+stateDiagram-v2
+    [*] --> Démarrage : lancement (ou icône barre de menus)
+    Démarrage --> Idle : refreshDeviceInfo() + snapshot
+    Idle --> Mesure : Timer (toutes les 2 s)
+    Mesure --> Idle : refreshMetrics() / historique mis à jour
+    Idle --> Nettoyage : runCleanup()
+    Nettoyage --> Idle : Journal alimenté, statut « ✓ »
+    Idle --> Optimisation : runOptimization()
+    Optimisation --> Idle : gros fichiers listés
+    Idle --> [*] : Quitter (menu barre de menus / ⌘Q)
+```
+
+#### 1.3.4 Diagramme de cas d'utilisation
+
+```mermaid
+flowchart LR
+    U([Utilisateur]) --> S[Surveiller son Mac]
+    U --> N[Nettoyer son Mac]
+    U --> O[Optimiser l'espace disque]
+    U --> R[Activer un rappel hebdomadaire]
+    U --> Q[Accéder aux actions depuis la barre de menus]
+
+    S --> S1[Voir CPU / RAM / Disque en temps réel]
+    S --> S2[Consulter l'historique 2 min]
+    N --> N1[Vider caches et fichiers temporaires]
+    N --> N2[Vider la corbeille]
+    O --> O1[Lister les fichiers > 100 Mo]
+```
+
 ---
 
 ## 2. Code source commenté
@@ -202,7 +371,19 @@ bash -n src/monitormymac.sh      # valide la syntaxe
 
 ---
 
-## 7. Historique des versions
+## 7. Captures d'écran
+
+> Les captures ont été réalisées sur macOS avec l'application en fonctionnement réel.
+
+| Capture | Fichier |
+|---|---|
+| Onglet **Surveillance** (jauges, cartes, historique) | ![Surveillance](screenshots/01-panel-surveillance.png) |
+| Onglet **Nettoyage** (rapels et bouton de nettoyage) | ![Nettoyage](screenshots/02-panel-nettoyage.png) |
+| Onglet **Optimisation** (analyse d'espace) | ![Optimisation](screenshots/03-panel-optimisation.png) |
+| Icône **barre de menus** (CPU en direct) | ![Barre de menus](screenshots/04-menu-bar.png) |
+| Fenêtre **Aide** illustrée | ![Aide](screenshots/05-panel-aide.png) |
+
+## 8. Historique des versions
 
 | Version | Date | Changements |
 |---|---|---|
