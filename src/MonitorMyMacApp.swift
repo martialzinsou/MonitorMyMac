@@ -819,14 +819,75 @@ final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UN
     //  Mise à jour des statistiques
     // -------------------------------------------------------------------------
 
+    /// Dessine une icône dynamique pour la barre de menus (mini jauge ou sparkline CPU).
+    ///
+    /// Génère une image conforme aux contraintes de la barre de menus macOS (hauteur ~18-22 pt,
+    /// mode modèle `isTemplate = true` pour s'adapter automatiquement aux modes clair et sombre).
+    private func makeSparklineIcon(history: [Double], currentUsage: Double) -> NSImage {
+        let width: CGFloat = 24
+        let height: CGFloat = 14
+        let image = NSImage(size: NSSize(width: width, height: height))
+        
+        image.lockFocus()
+        
+        // Cadre extérieur arrondi discret
+        let bounds = NSRect(x: 0.5, y: 0.5, width: width - 1.0, height: height - 1.0)
+        let borderPath = NSBezierPath(roundedRect: bounds, xRadius: 2.5, yRadius: 2.5)
+        borderPath.lineWidth = 1.0
+        NSColor.labelColor.withAlphaComponent(0.35).setStroke()
+        borderPath.stroke()
+
+        // Trace du sparkline (historique des points)
+        let points = history.suffix(12)
+        if points.count >= 2 {
+            let path = NSBezierPath()
+            path.lineWidth = 1.2
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+
+            let count = points.count
+            let stepX = (width - 4.0) / CGFloat(max(1, count - 1))
+            let innerHeight = height - 4.0
+            
+            for (idx, val) in points.enumerated() {
+                let clamped = min(max(val, 0.0), 1.0)
+                let px = 2.0 + CGFloat(idx) * stepX
+                let py = 2.0 + CGFloat(clamped) * innerHeight
+                let pt = NSPoint(x: px, y: py)
+                if idx == 0 {
+                    path.move(to: pt)
+                } else {
+                    path.line(to: pt)
+                }
+            }
+            NSColor.labelColor.setStroke()
+            path.stroke()
+        } else {
+            // Repli sur une barre de niveau horizontale si l'historique est encore vide
+            let clamped = min(max(currentUsage, 0.0), 1.0)
+            let fillWidth = max(2.0, (width - 4.0) * CGFloat(clamped))
+            let barRect = NSRect(x: 2.0, y: 3.0, width: fillWidth, height: height - 6.0)
+            let barPath = NSBezierPath(roundedRect: barRect, xRadius: 1.5, yRadius: 1.5)
+            NSColor.labelColor.setFill()
+            barPath.fill()
+        }
+
+        image.unlockFocus()
+        image.isTemplate = true
+        return image
+    }
+
     /// Met à jour le texte de l'icône et les lignes de statistiques du menu.
     ///
-    /// L'icône affiche le taux CPU (ex. « 23% ») ; l'infobulle et le menu
-    /// affichent CPU, RAM et disque. Cette méthode est appelée à chaque rafraîchissement.
+    /// L'icône affiche un mini-graphique sparkline et le taux CPU (ex. « 23% ») ;
+    /// l'infobulle et le menu affichent CPU, RAM et disque.
     func updateQuickStats() {
         guard let button = statusItem?.button else { return }
         let monitor = SystemMonitor.shared
-        button.title = String(format: " %d%%", Int(monitor.cpuUsage * 100))
+        
+        button.image = makeSparklineIcon(history: monitor.cpuHistory, currentUsage: monitor.cpuUsage)
+        button.imagePosition = .imageLeading
+        button.title = String(format: "%d%%", Int(monitor.cpuUsage * 100))
         button.toolTip = String(
             format: "CPU %d %% · RAM %d %% · Disque %d %%",
             Int(monitor.cpuUsage * 100),

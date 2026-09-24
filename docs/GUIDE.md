@@ -38,7 +38,7 @@ L'application s'ouvre sur une fenêtre moderne et minimaliste composée de :
 | **Onglets** | `Surveillance` · `Nettoyage` · `Optimisation` |
 | **Cartes** | Jauges animées et statistiques en direct |
 | **Historique** | Courbes d'évolution CPU & RAM (2 dernières minutes) |
-| **Barre de menus** | Icône macOS + % CPU, menu et actions rapides |
+| **Barre de menus** | Mini-graphique sparkline + % CPU en direct, menu et actions rapides |
 | **Journal** | Suivi de toutes les actions effectuées |
 | **Pied de page** | Statut en direct de l'application |
 

@@ -165,7 +165,7 @@ classDiagram
 - **Onglets** : `Surveillance` · `Nettoyage` · `Optimisation`
 - **Grille de cartes** : jauges animées et informations système
 - **Historique** : courbes de tendance CPU & RAM (2 min)
-- **Barre de menus** : icône + % CPU, menu déroulant, actions rapides
+- **Barre de menus** : mini-graphique (sparkline dynamique) + % CPU, menu déroulant, actions rapides
 - **Journal** : liste des actions effectuées
 - **Pied de page** : statut en direct de l'application
 
