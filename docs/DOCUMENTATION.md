@@ -375,15 +375,33 @@ bash -n src/monitormymac.sh      # valide la syntaxe
 
 ## 7. Captures d'écran
 
-> Les captures ont été réalisées sur macOS avec l'application en fonctionnement réel.
+> Toutes les captures d'écran ont été réalisées sur macOS (Retina 2880×1800) avec l'application MonitorMyMac en version **v2.1.0**, fenêtre principale affichée. Les fichiers PNG sont stockés dans `docs/screenshots/` et référencés via des chemins relatifs.
 
-| Capture | Fichier |
-|---|---|
-| Onglet **Surveillance** (jauges, cartes, historique) | ![Surveillance](screenshots/01-panel-surveillance.png) |
-| Onglet **Nettoyage** (rapels et bouton de nettoyage) | ![Nettoyage](screenshots/02-panel-nettoyage.png) |
-| Onglet **Optimisation** (analyse d'espace) | ![Optimisation](screenshots/03-panel-optimisation.png) |
-| Icône **barre de menus** (CPU en direct) | ![Barre de menus](screenshots/04-menu-bar.png) |
-| Fenêtre **Aide** illustrée | ![Aide](screenshots/05-panel-aide.png) |
+| N° | Capture | Description | Dimensions |
+|---|---|---|---|
+| 1 | ![Surveillance](screenshots/01-panel-surveillance.png) | Onglet **Surveillance** : jauges CPU/RAM animées, cartes système, historique temps réel (2 courbes : bleu = CPU, violet = RAM). | 1012 × 760 px |
+| 2 | ![Nettoyage](screenshots/02-panel-nettoyage.png) | Onglet **Nettoyage** : bouton « Nettoyage intelligent », pastilles de portée (Temp > 60 min, Caches > 2 h, Corbeille), interrupteur rappel hebdomadaire (dimanche 10 h). | 1012 × 760 px |
+| 3 | ![Optimisation](screenshots/03-panel-optimisation.png) | Onglet **Optimisation** : bouton « Analyse de l'espace », liste des fichiers > 100 Mo dans Téléchargements/Documents/Bureau. | 1012 × 760 px |
+| 4 | ![Barre de menus](screenshots/04-menu-bar.png) | Icône **barre de menus** : affichage CPU en direct (ex. « 23 % »), menu déroulant avec actions rapides (⌘⇧N Nettoyage, ⌘⇧O Optimisation, Quitter). Largeur approximative 520 px (capture de la bande haute de l'écran). | 520 × 56 px |
+| 5 | ![Aide](screenshots/05-panel-aide.png) | Fenêtre **Aide** illustrée (bouton `?` dans l'en-tête) : descriptions détaillées de chaque fonctionnalité avec symboles SF Symbols et conseils d'utilisation. | 1012 × 760 px |
+
+### 7.1 Comment ajouter de nouvelles captures d'écran
+
+Si vous souhaitez mettre à jour les captures ou en ajouter de nouvelles :
+
+1. Lancez l'application : `open "MonitorMyMac.app"`
+2. Accédez à l'onglet ou à la fenêtre souhaitée (Surveillance / Nettoyage / Optimisation).
+3. Cliquez sur **↻** pour rafraîchir les métriques à jour.
+4. Capturer : `screencapture -l <ID_FENÊTRE> ~/chemin/vers/fichier.png`
+   - Ou via le helper Swift inclus : `swift run windowid` → `screencapture -l <id> docs/screenshots/06-nouvelle.png`
+5. Ajoutez la ligne correspondante au tableau ci-dessus en respectant l'ordre numérique.
+6. Mettez à jour cette documentation et commitez les modifications.
+
+### 7.2 Taille et format
+
+- Format : **PNG** (perte sans perte, idéal pour les interfaces).
+- Redimensionnement recommandé : largeur ≤ 1012 px pour un affichage net sur les Retina 2880×1800 sans dépasser la largeur de la fenêtre principale.
+- Les captures 04-menu-bar.png sont des crops (520×56 px) représentant uniquement la bande supérieure de l'écran.
 
 ## 8. Historique des versions
 
