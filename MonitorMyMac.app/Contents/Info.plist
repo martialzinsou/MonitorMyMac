@@ -12,6 +12,8 @@
     <string>6.0</string>
     <key>CFBundleName</key>
     <string>MonitorMyMac</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 Martial Zinsou. Tous droits réservés.</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

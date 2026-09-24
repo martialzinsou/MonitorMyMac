@@ -2,6 +2,7 @@
 
 [![macOS](https://img.shields.io/badge/macOS-10.15%2B-blue)](https://www.apple.com/macos/)
 [![Version](https://img.shields.io/badge/version-2.1.0-green)]()
+[![Author](https://img.shields.io/badge/author-Martial%20Zinsou-purple)]()
 [![Language](https://img.shields.io/badge/language-SwiftUI-orange)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow)]()
 
