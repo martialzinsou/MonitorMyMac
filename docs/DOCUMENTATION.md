@@ -403,14 +403,29 @@ Si vous souhaitez mettre à jour les captures ou en ajouter de nouvelles :
 - Redimensionnement recommandé : largeur ≤ 1012 px pour un affichage net sur les Retina 2880×1800 sans dépasser la largeur de la fenêtre principale.
 - Les captures 04-menu-bar.png sont des crops (520×56 px) représentant uniquement la bande supérieure de l'écran.
 
-## 8. Historique des versions
+## 9. Design & Interface
 
-| Version | Date | Changements |
+### 9.1 Style Visuel : Liquid Glass (Verre Liquide)
+
+MonitorMyMac s'inspire du style **Liquid Glass** (verre liquide), une esthétique moderne qui combine :
+
+- **Transparence légère** : les cartes et jauges utilisent `ultraThinMaterial` avec opacité partielle, laissant deviner le fond tout en maintenant la lisibilité.
+- **Effet de flou dynamique** : `NSVisualEffectView` style `.windowContentBackground` qui s'adapte aux modes Clair/Sombre de macOS.
+- **Profondeur par couches** : l'en-tête, les cartes d'état et l'historique sont empilés avec des rayons d'ombre (`shadow radius: 6`) pour suggérer une profondeur visuelle.
+- **Coin arrondi continu** : `RoundedRectangle(cornerRadius: 18, style: .continuous)` utilisé de manière cohérente sur toutes les cartes.
+- **Palette de couleurs** : fond ultra-léger (`Color(white: 1, opacity: 0.02)`) avec des accents en bleu/cyan pour les états actifs et violet pour la mémoire.
+
+#### Effets implémentés dans le code source
+
+| Élément | SwiftUI / AppKit | Description |
 |---|---|---|
-| 1.0.0 | 2025 | Outil CLI bash + bundle .app |
-| 2.0.0 | 2025 | Réécriture **SwiftUI** : interface élégante, jauges animées, statistiques en temps réel |
-| 2.1.0 | 2025 | **Barre de menus**, **graphiques d'historique** (CPU/RAM), **rappels hebdomadaires** |
+| Cartes principales | `.ultraThinMaterial` | Transparence dynamique Clair/Sombre |
+| Jauges annulaires | `NSVisualEffectView` | Flou dynamique derrière la jauge |
+| Fenêtre Aide | `.glass` | Style vitre enrichi de symboles SF |
+| Barre de menus | `.sidebarItem` | Intégration native barre de menus macOS |
 
----
+> **Note** : L'effet "Liquid Glass" est obtenu sans bibliothèque tierce, exclusivement via les API SwiftUI/AppKit native de macOS. L'apparence peut varier selon le thème système (Clair/Sombre) et la version de macOS (10.15+).
 
-*Auteur : **Martial Zinsou***
+### 9.2 Auteur
+
+**Auteur : Martial Zinsou** — Conception visuelle et développement complet de MonitorMyMac. Toutes les décisions d'interface reflètent le style Liquid Glass cherché, alliant esthétique Apple et fonctionnalité pratique.

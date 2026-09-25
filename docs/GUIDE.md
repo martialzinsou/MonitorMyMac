@@ -192,3 +192,29 @@ Besoin d'aide ? Consultez la [documentation technique](DOCUMENTATION.md).
 ---
 
 *Auteur : **Martial Zinsou***
+## 11. Design et Interface
+
+### Style Visuel : Liquid Glass (Verre Liquide)
+
+MonitorMyMac adopte le style **Liquid Glass**, une esthétique moderne inspirée d'Apple et Google qui se caractérise par :
+
+- **Transparence intelligente** : les cartes utilisent `ultraThinMaterial`, laissant deviner l'arrière-plan tout en maintenant une lecture claire des informations.
+- **Flou dynamique** : l'effet de blur s'ajuste automatiquement au thème Clair ou Sombre de macOS, pour un confort visuel optimal en toute circonstance.
+- **Effet de profondeur** : les différentes zones de l'application (en-tête, cartes, historique) sont légèrement empilées avec des ombres discrètes (`shadow radius: 6`), suggérant une hiérarchie visuelle sans éléments 3D lourds.
+- **Coins arrondis harmonieux** : chaque élément rectangulaire utilise `RoundedRectangle(cornerRadius: 18, style: .continuous)` pour un look cohérent et doux.
+- **Palette harmonieuse** : un fond quasi-transparent (`Color(white: 1, opacity: 0.02)`) avec des accents en bleu (CPU), violet (RAM) et vert (disque sain), sur fond clair ou sombre selon les préférences système.
+
+#### Application pratique dans MonitorMyMac
+
+| Zone de l'interface | Effet Liquid Glass |
+|---|---|
+| **En-tête et onglets** | Transparence partielle, fond légèrement flouté |
+| **Cartes de jauges** | `ultraThinMaterial` avec ombre légère |
+| **Fenêtre Aide** | Style verre avec symboles SF en premier plan |
+| **Barre de menus** | Intégration native, icône sparkline dynamique |
+
+> **Astuce** : L'apparence de MonitorMyMac évolue automatiquement selon vos préférences système (Modeclair / Mode Sombre). Aucun réglage manuel n'est requis.
+
+### Auteur
+
+**Auteur : Martial Zinsou** — Design d'interface Liquid Glass et développement complet de MonitorMyMac.

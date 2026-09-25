@@ -67,3 +67,5 @@ open "MonitorMyMac.app"
 | L'icône de barre de menus n'apparaît pas | Vérifiez que l'application n'est pas arrêtée dans Activity Monitor |
 
 ---
+---
+Auteur : Martial Zinsou
