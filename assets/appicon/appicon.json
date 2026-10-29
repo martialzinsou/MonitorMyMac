@@ -1,0 +1,45 @@
+{
+  "cote_carre_px": 234,
+  "glyphe": "moniteur-systeme",
+  "natif_px": [
+    213,
+    176
+  ],
+  "tailles": {
+    "1024": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.1,
+      "ratio_gabarit": 0.81
+    },
+    "128": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.115,
+      "ratio_gabarit": 0.85
+    },
+    "16": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.16,
+      "ratio_gabarit": 1.0
+    },
+    "256": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.105,
+      "ratio_gabarit": 0.82
+    },
+    "32": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.145,
+      "ratio_gabarit": 0.94
+    },
+    "512": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.1,
+      "ratio_gabarit": 0.81
+    },
+    "64": {
+      "coefficient_agrandissement": 3.12,
+      "marge_glyphe": 0.13,
+      "ratio_gabarit": 0.88
+    }
+  }
+}

@@ -1,0 +1,703 @@
+{
+  "echecs": {},
+  "icons": {
+    "accessibilité": {
+      "boite_glyphe_px": [
+        219,
+        187
+      ],
+      "colonne": 4,
+      "cote_carre_px": 241,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 45.5,
+      "pixels_transparents_pct": 54.5,
+      "planche": 2
+    },
+    "anti-espion": {
+      "boite_glyphe_px": [
+        251,
+        144
+      ],
+      "colonne": 6,
+      "cote_carre_px": 276,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 23.6,
+      "pixels_transparents_pct": 76.4,
+      "planche": 2
+    },
+    "anti-malware": {
+      "boite_glyphe_px": [
+        198,
+        202
+      ],
+      "colonne": 1,
+      "cote_carre_px": 222,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 55.2,
+      "pixels_transparents_pct": 44.8,
+      "planche": 2
+    },
+    "applications": {
+      "boite_glyphe_px": [
+        168,
+        188
+      ],
+      "colonne": 0,
+      "cote_carre_px": 207,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 45.3,
+      "pixels_transparents_pct": 54.7,
+      "planche": 2
+    },
+    "autorisations": {
+      "boite_glyphe_px": [
+        216,
+        182
+      ],
+      "colonne": 5,
+      "cote_carre_px": 238,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 53.4,
+      "pixels_transparents_pct": 46.6,
+      "planche": 2
+    },
+    "balai": {
+      "boite_glyphe_px": [
+        268,
+        251
+      ],
+      "colonne": 0,
+      "cote_carre_px": 295,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 49.0,
+      "pixels_transparents_pct": 51.0,
+      "planche": 1
+    },
+    "batterie": {
+      "boite_glyphe_px": [
+        213,
+        150
+      ],
+      "colonne": 5,
+      "cote_carre_px": 234,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 44.1,
+      "pixels_transparents_pct": 55.9,
+      "planche": 2
+    },
+    "caches": {
+      "boite_glyphe_px": [
+        208,
+        187
+      ],
+      "colonne": 5,
+      "cote_carre_px": 229,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 45.4,
+      "pixels_transparents_pct": 54.6,
+      "planche": 2
+    },
+    "compatibilité": {
+      "boite_glyphe_px": [
+        273,
+        180
+      ],
+      "colonne": 1,
+      "cote_carre_px": 300,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 48.2,
+      "pixels_transparents_pct": 51.8,
+      "planche": 2
+    },
+    "confidentialité": {
+      "boite_glyphe_px": [
+        223,
+        174
+      ],
+      "colonne": 3,
+      "cote_carre_px": 245,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 46.3,
+      "pixels_transparents_pct": 53.7,
+      "planche": 2
+    },
+    "corbeilles": {
+      "boite_glyphe_px": [
+        167,
+        197
+      ],
+      "colonne": 4,
+      "cote_carre_px": 217,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 55.6,
+      "pixels_transparents_pct": 44.4,
+      "planche": 2
+    },
+    "cpu": {
+      "boite_glyphe_px": [
+        207,
+        208
+      ],
+      "colonne": 4,
+      "cote_carre_px": 229,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 65.9,
+      "pixels_transparents_pct": 34.1,
+      "planche": 2
+    },
+    "donnees-web": {
+      "boite_glyphe_px": [
+        201,
+        200
+      ],
+      "colonne": 2,
+      "cote_carre_px": 221,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 55.1,
+      "pixels_transparents_pct": 44.9,
+      "planche": 2
+    },
+    "doublons": {
+      "boite_glyphe_px": [
+        180,
+        197
+      ],
+      "colonne": 3,
+      "cote_carre_px": 217,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 61.9,
+      "pixels_transparents_pct": 38.1,
+      "planche": 2
+    },
+    "démarrage": {
+      "boite_glyphe_px": [
+        211,
+        178
+      ],
+      "colonne": 2,
+      "cote_carre_px": 232,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 63.0,
+      "pixels_transparents_pct": 37.0,
+      "planche": 2
+    },
+    "désactivation": {
+      "boite_glyphe_px": [
+        217,
+        162
+      ],
+      "colonne": 6,
+      "cote_carre_px": 239,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 50.3,
+      "pixels_transparents_pct": 49.7,
+      "planche": 2
+    },
+    "désinstallation": {
+      "boite_glyphe_px": [
+        206,
+        175
+      ],
+      "colonne": 1,
+      "cote_carre_px": 227,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 53.4,
+      "pixels_transparents_pct": 46.6,
+      "planche": 2
+    },
+    "extensions": {
+      "boite_glyphe_px": [
+        235,
+        190
+      ],
+      "colonne": 3,
+      "cote_carre_px": 258,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 41.6,
+      "pixels_transparents_pct": 58.4,
+      "planche": 2
+    },
+    "fichiers-inutiles": {
+      "boite_glyphe_px": [
+        202,
+        197
+      ],
+      "colonne": 1,
+      "cote_carre_px": 222,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 55.1,
+      "pixels_transparents_pct": 44.9,
+      "planche": 2
+    },
+    "fichiers-sensibles": {
+      "boite_glyphe_px": [
+        201,
+        201
+      ],
+      "colonne": 4,
+      "cote_carre_px": 221,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 54.4,
+      "pixels_transparents_pct": 45.6,
+      "planche": 2
+    },
+    "gros-fichiers": {
+      "boite_glyphe_px": [
+        207,
+        190
+      ],
+      "colonne": 2,
+      "cote_carre_px": 228,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 54.7,
+      "pixels_transparents_pct": 45.3,
+      "planche": 2
+    },
+    "historiques": {
+      "boite_glyphe_px": [
+        199,
+        197
+      ],
+      "colonne": 6,
+      "cote_carre_px": 219,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 47.8,
+      "pixels_transparents_pct": 52.2,
+      "planche": 2
+    },
+    "jauge": {
+      "boite_glyphe_px": [
+        248,
+        240
+      ],
+      "colonne": 4,
+      "cote_carre_px": 273,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 59.3,
+      "pixels_transparents_pct": 40.7,
+      "planche": 1
+    },
+    "memoire-cache": {
+      "boite_glyphe_px": [
+        250,
+        206
+      ],
+      "colonne": 5,
+      "cote_carre_px": 275,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 50.8,
+      "pixels_transparents_pct": 49.2,
+      "planche": 1
+    },
+    "mises-a-jour": {
+      "boite_glyphe_px": [
+        202,
+        199
+      ],
+      "colonne": 2,
+      "cote_carre_px": 222,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 41.1,
+      "pixels_transparents_pct": 58.9,
+      "planche": 2
+    },
+    "mises-a-jour-restes": {
+      "boite_glyphe_px": [
+        232,
+        227
+      ],
+      "colonne": 2,
+      "cote_carre_px": 255,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 45.7,
+      "pixels_transparents_pct": 54.3,
+      "planche": 1
+    },
+    "moniteur-systeme": {
+      "boite_glyphe_px": [
+        213,
+        176
+      ],
+      "colonne": 6,
+      "cote_carre_px": 234,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 69.8,
+      "pixels_transparents_pct": 30.2,
+      "planche": 2
+    },
+    "mots-de-passe": {
+      "boite_glyphe_px": [
+        189,
+        184
+      ],
+      "colonne": 5,
+      "cote_carre_px": 208,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 51.5,
+      "pixels_transparents_pct": 48.5,
+      "planche": 2
+    },
+    "optimiseur": {
+      "boite_glyphe_px": [
+        214,
+        176
+      ],
+      "colonne": 3,
+      "cote_carre_px": 235,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 33.8,
+      "pixels_transparents_pct": 66.2,
+      "planche": 2
+    },
+    "performance": {
+      "boite_glyphe_px": [
+        191,
+        202
+      ],
+      "colonne": 0,
+      "cote_carre_px": 222,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 41.7,
+      "pixels_transparents_pct": 58.3,
+      "planche": 2
+    },
+    "processus": {
+      "boite_glyphe_px": [
+        226,
+        195
+      ],
+      "colonne": 6,
+      "cote_carre_px": 249,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 44.9,
+      "pixels_transparents_pct": 55.1,
+      "planche": 2
+    },
+    "préférences": {
+      "boite_glyphe_px": [
+        155,
+        195
+      ],
+      "colonne": 5,
+      "cote_carre_px": 214,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 63.6,
+      "pixels_transparents_pct": 36.4,
+      "planche": 2
+    },
+    "puce-apple": {
+      "boite_glyphe_px": [
+        230,
+        216
+      ],
+      "colonne": 4,
+      "cote_carre_px": 253,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 54.6,
+      "pixels_transparents_pct": 45.4,
+      "planche": 1
+    },
+    "purge": {
+      "boite_glyphe_px": [
+        194,
+        196
+      ],
+      "colonne": 0,
+      "cote_carre_px": 216,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 34.3,
+      "pixels_transparents_pct": 65.7,
+      "planche": 2
+    },
+    "ram": {
+      "boite_glyphe_px": [
+        192,
+        174
+      ],
+      "colonne": 1,
+      "cote_carre_px": 211,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 64.7,
+      "pixels_transparents_pct": 35.3,
+      "planche": 2
+    },
+    "scripts": {
+      "boite_glyphe_px": [
+        210,
+        180
+      ],
+      "colonne": 3,
+      "cote_carre_px": 231,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 1,
+      "pixels_opaques_pct": 72.0,
+      "pixels_transparents_pct": 28.0,
+      "planche": 2
+    },
+    "securite": {
+      "boite_glyphe_px": [
+        153,
+        199
+      ],
+      "colonne": 0,
+      "cote_carre_px": 219,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 3,
+      "pixels_opaques_pct": 55.1,
+      "pixels_transparents_pct": 44.9,
+      "planche": 2
+    },
+    "simplicite-ux": {
+      "boite_glyphe_px": [
+        243,
+        178
+      ],
+      "colonne": 0,
+      "cote_carre_px": 267,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 51.1,
+      "pixels_transparents_pct": 48.9,
+      "planche": 2
+    },
+    "theme-clair-sombre": {
+      "boite_glyphe_px": [
+        219,
+        181
+      ],
+      "colonne": 2,
+      "cote_carre_px": 241,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 4,
+      "pixels_opaques_pct": 62.3,
+      "pixels_transparents_pct": 37.7,
+      "planche": 2
+    },
+    "traductions": {
+      "boite_glyphe_px": [
+        286,
+        201
+      ],
+      "colonne": 1,
+      "cote_carre_px": 315,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 0,
+      "pixels_opaques_pct": 37.2,
+      "pixels_transparents_pct": 62.8,
+      "planche": 1
+    },
+    "widgets": {
+      "boite_glyphe_px": [
+        210,
+        185
+      ],
+      "colonne": 4,
+      "cote_carre_px": 231,
+      "couleur_moyenne": [
+        0,
+        0,
+        0
+      ],
+      "ligne": 2,
+      "pixels_opaques_pct": 73.1,
+      "pixels_transparents_pct": 26.9,
+      "planche": 2
+    }
+  },
+  "taille_cible": 256
+}

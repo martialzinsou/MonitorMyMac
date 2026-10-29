@@ -12,23 +12,29 @@
     <string>6.0</string>
     <key>CFBundleName</key>
     <string>MonitorMyMac</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2025 Martial Zinsou. Tous droits réservés.</string>
+    <string>Copyright © 2025-2026 Martial Zinsou. Licence MIT.</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.1</string>
+    <string>3.0.0</string>
     <key>CFBundleVersion</key>
-    <string>2.1.0</string>
+    <string>3.0.0</string>
     <key>CSResourcesFileMapped</key>
     <true/>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
+    <string>11.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>MonitorMyMac utilise AppleScript pour vider la corbeille de Mail et demander les opérations nécessitant un administrateur.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>MonitorMyMac liste les corbeilles des volumes montés afin de vous en donner la taille réelle.</string>
 </dict>
 </plist>
