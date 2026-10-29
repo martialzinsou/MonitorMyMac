@@ -7,40 +7,55 @@
 //  ---------------------
 //
 //  MonitorMyMac est une application macOS 100 % native écrite en Swift + SwiftUI.
-//  Elle propose trois grandes familles de fonctions :
+//  Elle propose huit onglets regroupés en quatre familles :
 //
-//    • SURVEILLANCE  — affiche en temps réel les statistiques de la machine :
-//      processeur, mémoire vive, stockage et informations système.
-//    • NETTOYAGE     — supprime en toute sécurité les fichiers inutiles :
-//      caches, fichiers temporaires, logs système et corbeille.
-//    • OPTIMISATION  — recherche les fichiers volumineux (> 100 Mo) afin de
-//      libérer de l'espace disque.
+//    • SURVEILLANCE  — CPU, mémoire, stockage, matériel et historique en direct.
+//    • PURGE         — sept familles balayées sur le disque : caches, journaux
+//      et diagnostics, restes de mises à jour, traductions inutilisées, gros
+//      fichiers anciens, doublons (SHA‑256) et corbeilles.
+//    • PERFORMANCE   — purge de la RAM mesurée, processus gourmands, éléments
+//      de démarrage et scripts de maintenance (permissions, Spotlight).
+//    • APPLICATIONS  — inventaire, désinstallation complète (bundle + résidus),
+//      mises à jour centralisées et extensions (pluginkit + navigateurs).
+//    • SÉCURITÉ      — données de navigation, analyse anti‑malware par
+//      signatures locales, quarantaine réversible, vérification de signature et
+//      broyeur de fichiers.
+//    • AIDE / FAQ / À PROPOS — fonctionnement expliqué, commandes réellement
+//      appelées, limites assumées et captures d'écran de l'application elle‑même.
 //
 //  L'application propose également :
-//      • une icône dans la barre de menus macOS (taux CPU en direct) ;
+//      • une icône dans la barre de menus macOS (taux CPU en direct, accès
+//        direct aux huit sections) ;
 //      • des graphiques d'historique (courbes de tendance CPU & RAM) ;
-//      • des rappels hebdomadaires de nettoyage par notifications.
+//      • des rappels hebdomadaires de nettoyage par notifications ;
+//      • un menu « Actions » et un menu « Navigation » avec raccourcis clavier.
 //
 //  COMPILATION (sans Xcode) :
 //  -------------------------
-//      swiftc -parse-as-library src/MonitorMyMacApp.swift \
-//          -framework SwiftUI -framework AppKit -framework UserNotifications \
-//          -o MonitorMyMac.app/Contents/MacOS/MonitorMyMac
+//      ./build.sh                    # deux tranches (x86_64 + arm64), lipo, signature
+//      ./build.sh --typecheck        # typage sous la cible macOS 11.0
+//      ./build.sh --shots            # puis lance l'auto-capture des onglets
+//      ./run.sh                      # compile et ouvre l'application
 //
-//  PRÉREQUIS : macOS 10.15 ou supérieur (Intel ou Apple Silicon).
+//  PRÉREQUIS : macOS 11.0 (Big Sur) ou supérieur, Intel ou Apple Silicon.
+//  Le binaire produit est Universel 2 ; la tranche arm64 est compilée depuis
+//  n'importe quelle machine, mais ne s'exécute que sur Apple Silicon.
 //
 //  STRUCTURE DU FICHIER :
 //  ----------------------
 //    1. SystemMonitor      — service observable (singleton) au cœur de l'app.
 //    2. CPU / Memory / Disk— collecteurs de métriques système.
 //    3. Device             — informations statiques (modèle, macOS, uptime).
-//    4. Cleaner            — opérations de nettoyage et d'optimisation.
+//    4. Cleaner            — nettoyage et optimisation « express ».
 //    5. Reminder           — rappels hebdomadaires via UserNotifications.
 //    6. MenuBarDelegate    — icône de barre de menus + menu + notifications.
 //    7. ContentView        — interface principale (en-tête, onglets, journal).
 //    8. Cartes UI          — GaugeCard, DiskCard, SystemCard, HistoryChartCard.
-//    9. Vues d'action      — CleanupView, OptimizationView, HelpView, Aide.
-//   10. Point d'entrée     — struct MonitorMyMacApp (@main).
+//    9. ReminderCard       — interrupteur du rappel hebdomadaire.
+//   10. Point d'entrée     — struct MonitorMyMacApp (@main) et ses menus.
+//
+//  Les onglets lourds vivent dans `src/UI/` (PurgeView, PerformanceView,
+//  AppsView, SecurityView, DocsViews) et leurs moteurs dans `src/Core/`.
 // ============================================================================
 
 import SwiftUI
@@ -152,42 +167,83 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
+    /// Mesure en cours ? Empêche deux relevés simultanés de s'empiler.
+    private var metricsInFlight = false
+
     /// Actualise les métriques dynamiques (CPU, RAM, disque) et l'historique.
+    ///
+    /// Les relevés (`top`, `vm_stat`, `df`, `sysctl`) sont des processus : ils
+    /// sont donc lus **hors du fil principal**, puis publiés sur le fil
+    /// principal. Les appeler directement ici gelait l'interface pendant
+    /// environ une seconde toutes les deux secondes.
     ///
     /// Méthode publique appelée à chaque tick du minuteur, mais aussi manuellement
     /// via le bouton « Actualiser ». Elle met à jour les ratios et détails
     /// affichés par les cartes, enrichit les historiques (bornés à 60 points)
     /// puis rafraîchit le texte de l'icône de la barre de menus.
     func refreshMetrics() {
-        cpuUsage = CPU.usage()
-        memoryUsage = Memory.usage()
-        diskUsage = Disk.usage()
-        cpuDetail = String(format: "%.0f %%", cpuUsage * 100)
-        memoryDetail = Memory.detail()
-        diskDetail = Disk.detail()
+        guard !metricsInFlight else { return }
+        metricsInFlight = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let cpu = CPU.usage()
+            let memory = Memory.usage()
+            let disk = Disk.usage()
+            let memoryDetail = Memory.detail()
+            let diskDetail = Disk.detail()
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.cpuUsage = cpu
+                self.memoryUsage = memory
+                self.diskUsage = disk
+                self.cpuDetail = String(format: "%.0f %%", cpu * 100)
+                self.memoryDetail = memoryDetail
+                self.diskDetail = diskDetail
 
-        // Enregistre les échantillons pour les graphiques d'évolution.
-        cpuHistory.append(cpuUsage)
-        memoryHistory.append(memoryUsage)
-        if cpuHistory.count > historyCapacity { cpuHistory.removeFirst(cpuHistory.count - historyCapacity) }
-        if memoryHistory.count > historyCapacity { memoryHistory.removeFirst(memoryHistory.count - historyCapacity) }
+                // Enregistre les échantillons pour les graphiques d'évolution.
+                self.cpuHistory.append(cpu)
+                self.memoryHistory.append(memory)
+                if self.cpuHistory.count > self.historyCapacity {
+                    self.cpuHistory.removeFirst(self.cpuHistory.count - self.historyCapacity)
+                }
+                if self.memoryHistory.count > self.historyCapacity {
+                    self.memoryHistory.removeFirst(self.memoryHistory.count - self.historyCapacity)
+                }
+                self.metricsInFlight = false
 
-        // Met à jour l'icône et le menu de la barre d'état.
-        MenuBarDelegate.shared.updateQuickStats()
+                // Met à jour l'icône et le menu de la barre d'état.
+                MenuBarDelegate.shared.updateQuickStats()
+            }
+        }
     }
 
-    /// Actualise les informations statiques de la machine.
+    /// Lecture des informations « statiques » (modèle, CPU, uptime).
     ///
-    /// Les informations « statiques » (modèle, version macOS, mémoire totale,
-    /// uptime, processeur) ne changent pas avec le temps ; elles sont donc
-    /// rechargées uniquement au lancement ou sur action manuelle.
+    /// Ces informations ne changent pas avec le temps : elles sont rechargées au
+    /// lancement ou sur action manuelle. `system_profiler` et `uptime` sont des
+    /// processus externes qui peuvent demander une à trois secondes ; ils
+    /// tournent donc hors du fil principal, et seuls les résultats sont publiés.
+    private var deviceInFlight = false
+
     func refreshDeviceInfo() {
-        osInfo = Device.osVersion()
-        modelInfo = Device.macModel()
-        cpuName = Device.cpuModel()
-        coreCount = Device.cpuCount()
-        totalMemoryGB = Device.memoryGB()
-        uptime = Device.uptime()
+        guard !deviceInFlight else { return }
+        deviceInFlight = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let osInfo = Device.osVersion()
+            let model = Device.macModel()
+            let cpu = Device.cpuModel()
+            let cores = Device.cpuCount()
+            let memory = Device.memoryGB()
+            let up = Device.uptime()
+            DispatchQueue.main.async {
+                self?.osInfo = osInfo
+                self?.modelInfo = model
+                self?.cpuName = cpu
+                self?.coreCount = cores
+                self?.totalMemoryGB = memory
+                self?.uptime = up
+                self?.deviceInFlight = false
+            }
+        }
     }
 
     /// Rafraîchit explicitement le contenu de l'icône de la barre de menus.
@@ -217,24 +273,31 @@ final class SystemMonitor: ObservableObject {
 
         appendLog("═══════════ NETTOYAGE ═══════════")
 
-        let tasks: [(String, () -> Int)] = [
-            ("Fichiers temporaires (/tmp)", { Cleaner.tempFiles() }),
-            ("Caches utilisateur", { Cleaner.userCaches() }),
-            ("Logs système", { Cleaner.systemLogs() }),
-            ("Corbeille", { Cleaner.trash() })
+        // Les quatre collectes parcourent le disque : elles partent hors du fil
+        // principal, seules les lignes de journal reviennent dans l'interface.
+        // Le verbe diffère : les trois premières collectes vont à la corbeille
+        // (réversible), la dernière la vide (définitif).
+        let tasks: [(String, String, () -> Int)] = [
+            ("Fichiers temporaires (/tmp)", "placé(s) à la corbeille", { Cleaner.tempFiles() }),
+            ("Caches utilisateur", "placé(s) à la corbeille", { Cleaner.userCaches() }),
+            ("Logs système", "placé(s) à la corbeille", { Cleaner.systemLogs() }),
+            ("Corbeille", "définitivement supprimé(s)", { Cleaner.trash() })
         ]
 
-        for (label, task) in tasks {
-            let count = task()
-            appendLog("  ✦ \(label) : \(count) élément(s) supprimé(s)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            for (label, verb, task) in tasks {
+                let count = task()
+                DispatchQueue.main.async { self?.appendLog("  ✦ \(label) : \(count) élément(s) \(verb)") }
+            }
+            DispatchQueue.main.async {
+                self?.appendLog("")
+                self?.statusMessage = "Nettoyage terminé ✓"
+                self?.isProcessing = false
+            }
         }
-
-        appendLog("")
-        statusMessage = "Nettoyage terminé ✓"
-        isProcessing = false
     }
 
-    /// Recherche les fichiers volumineux (> 100 Mo) afin de libérer de l'espace.
+    /// Recherche les fichiers volumineux (> 100 Mo) et les signale sans les supprimer.
     ///
     /// La recherche porte sur les dossiers Téléchargements, Documents et Bureau.
     /// Les résultats sont affichés dans le journal ; la suppression reste à la
@@ -244,23 +307,26 @@ final class SystemMonitor: ObservableObject {
         isProcessing = true
         statusMessage = "Recherche des gros fichiers…"
 
-        appendLog("═══════════ OPTIMISATION ═══════════")
+        appendLog("═══════════ REPÉRAGE DES GROS FICHIERS ═══════════")
 
-        let files = Cleaner.largeFiles()
-        if files.isEmpty {
-            appendLog("Aucun fichier supérieur à 100 Mo trouvé.")
-            appendLog("")
-        } else {
-            appendLog("Fichiers volumineux (> 100 Mo) :")
-            for file in files {
-                appendLog("  • \(file)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let files = Cleaner.largeFiles()
+            DispatchQueue.main.async {
+                if files.isEmpty {
+                    self?.appendLog("Aucun fichier supérieur à 100 Mo trouvé.")
+                    self?.appendLog("")
+                } else {
+                    self?.appendLog("Fichiers volumineux (> 100 Mo) :")
+                    for file in files {
+                        self?.appendLog("  • \(file)")
+                    }
+                    self?.appendLog("")
+                    self?.appendLog("Astuce : effacez-les dans le Finder pour libérer de l'espace.")
+                }
+                self?.statusMessage = "Repérage terminé ✓"
+                self?.isProcessing = false
             }
-            appendLog("")
-            appendLog("Astuce : effacez-les dans le Finder pour libérer de l'espace.")
         }
-
-        statusMessage = "Optimisation terminée ✓"
-        isProcessing = false
     }
 
     /// Vide entièrement le journal des actions.
@@ -269,7 +335,7 @@ final class SystemMonitor: ObservableObject {
     }
 
     /// Ajoute une ligne au journal (saut de ligne automatique).
-    private func appendLog(_ line: String) {
+    func appendLog(_ line: String) {
         if log.isEmpty {
             log = line
         } else {
@@ -353,13 +419,20 @@ enum Memory {
         return min(max(ratio, 0), 1)
     }
 
-    /// Construit un texte lisible décrivant la mémoire (ex. « 6,2/16,0 Go »).
+    /// Construit un texte lisible décrivant la mémoire (ex. « 9,7 Go utilisés sur 16,0 Go »).
     static func detail() -> String {
         let used = Int64(Double(Device.memsize() ?? 0) * usage())
         let total = Int64((Device.memsize() ?? 0)) / 1
         let usedGB = Double(used) / 1_073_741_824
         let totalGB = Double(total) / 1_073_741_824
-        return String(format: "%.1f Go utilisés sur %.1f Go", usedGB, totalGB)
+        // `String(format:)` suit la locale de la machine ; sur une installation
+        // anglophone il rendrait « 9.7 » alors que toute l'interface est française.
+        return "\(frNumber(usedGB)) Go utilisés sur \(frNumber(totalGB)) Go"
+    }
+
+    /// Formate un nombre avec une virgule décimale, quel que soit la locale.
+    static func frNumber(_ value: Double) -> String {
+        String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
     }
 
     /// Analyse la sortie de `vm_stat` et retourne un dictionnaire pages → valeur.
@@ -422,7 +495,21 @@ enum Disk {
         guard let line = rootLine() else { return "—" }
         let fields = line.split(separator: " ").map(String.init)
         guard fields.count > 3 else { return "—" }
-        return "\(fields[2]) utilisés / \(fields[1]) disponibles"
+        // `df -h` rend des unités binaire façon annexes IEEE (« 21Gi », « 954Gi »)
+        // que personne ne lit. On les remet en « Go » / « To » tout en gardant
+        // la valeur mesurée, sans arrondi ni recalcul.
+        return "\(human(fields[2])) utilisés / \(human(fields[1])) disponibles"
+    }
+
+    /// « 21Gi » → « 21 Go » ; « 1.5Ti » → « 1,5 To ».
+    private static func human(_ raw: String) -> String {
+        var value = raw
+        let units: [(String, String)] = [("Ti", "To"), ("Gi", "Go"), ("Mi", "Mo"), ("Ki", "Ko")]
+        for (from, to) in units where value.hasSuffix(from) {
+            value = String(value.dropLast(from.count)) + " " + to
+            break
+        }
+        return value.replacingOccurrences(of: ".", with: ",")
     }
 
     /// Renvoie la première ligne de données de `df -h /` (ligne du volume racine).
@@ -569,21 +656,24 @@ enum Device {
 ///   • aucun fichier personnel n'est jamais supprimé.
 enum Cleaner {
 
-    /// Supprime les fichiers temporaires de `/tmp` plus anciens que 60 minutes.
-    /// - Returns: nombre de fichiers supprimés.
+    /// Place les fichiers temporaires de `/tmp` plus anciens que 60 minutes à la
+    /// corbeille.
+    /// - Returns: nombre de fichiers effectivement déplacés.
     static func tempFiles() -> Int {
         delete(in: "/tmp", patterns: ["*"], olderThanMinutes: 60)
     }
 
-    /// Supprime les caches utilisateur (`.cache` / `.log`) plus anciens que 2 h.
-    /// - Returns: nombre de fichiers supprimés.
+    /// Place les caches utilisateur (`.cache` / `.log`) plus anciens que 2 h à la
+    /// corbeille.
+    /// - Returns: nombre de fichiers effectivement déplacés.
     static func userCaches() -> Int {
         guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return 0 }
         return delete(in: caches.path, patterns: ["*.cache", "*.log"], olderThanMinutes: 120)
     }
 
-    /// Supprime les logs système de plus de 24 h (selon les permissions).
-    /// - Returns: nombre de fichiers supprimés (0 si droits insuffisants).
+    /// Place les logs système de plus de 24 h à la corbeille (selon les
+    /// permissions : ces fichiers appartiennent le plus souvent à root).
+    /// - Returns: nombre de fichiers déplacés (0 si droits insuffisants).
     static func systemLogs() -> Int {
         delete(in: "/private/var/log", patterns: ["*.log"], olderThanMinutes: 1440)
     }
@@ -623,13 +713,18 @@ enum Cleaner {
 
     /// Supprime, dans un dossier, tous les fichiers correspondant à des motifs
     /// et plus anciens qu'un seuil donné. Retourne le nombre de suppressions.
+    ///
+    /// Le geste va à la **corbeille** (`trashItem`) et non à `removeItem` : le
+    /// nettoyage express reste réversible, comme dans l'espace Purge. Un fichier
+    /// possédé par root (`/private/var/log`, une partie de `/tmp`) est refusé par
+    /// macOS ; il est compté comme conservé, jamais comme supprimé.
     private static func delete(in directory: String, patterns: [String], olderThanMinutes minutes: Int) -> Int {
         guard FileManager.default.fileExists(atPath: directory) else { return 0 }
         var removed = 0
         for pattern in patterns {
             for file in find(directory, patterns: [pattern], olderThanMinutes: minutes) {
                 do {
-                    try FileManager.default.removeItem(atPath: file)
+                    try FileManager.default.trashItem(at: URL(fileURLWithPath: file), resultingItemURL: nil)
                     removed += 1
                 } catch {
                     // Permission ou verrou : le fichier est simplement conservé.
@@ -784,7 +879,7 @@ final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UN
 
         // — En-tête du menu : ouvre la fenêtre principale.
         let appItem = NSMenuItem(title: "MonitorMyMac", action: #selector(openMainWindow), keyEquivalent: "")
-        appItem.image = NSImage(systemSymbolName: "macbook.and.iphone", accessibilityDescription: "")
+        appItem.image = NSImage(systemSymbolName: ("macbook.and.iphone").mmSafeSymbol, accessibilityDescription: "")
         menu.addItem(appItem)
         menu.addItem(.separator())
 
@@ -801,10 +896,62 @@ final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UN
 
         // — Actions rapides.
         let cleanItem = NSMenuItem(title: "🧹  Nettoyage rapide", action: #selector(quickCleanup), keyEquivalent: "n")
+        cleanItem.toolTip = "Les quatre collectes automatiques : /tmp au-delà de 60 min, caches utilisateur au-delà de 2 h, journaux système au-delà de 24 h, puis vidage de la corbeille. Les trois premières vont à la corbeille (réversible) ; la dernière est définitive."
         menu.addItem(cleanItem)
 
-        let optimizeItem = NSMenuItem(title: "⚡  Optimisation rapide", action: #selector(quickOptimize), keyEquivalent: "o")
+        // Le libellé dit ce que la commande fait vraiment : `Cleaner.largeFiles()`
+        // liste des fichiers de plus de 100 Mo, il n'en supprime aucun. « Optimisation »
+        // promettait une place libérée que rien ne délivrait.
+        let optimizeItem = NSMenuItem(title: "🔍  Repérer les fichiers volumineux",
+                                      action: #selector(quickOptimize), keyEquivalent: "o")
+        optimizeItem.toolTip = "Liste les fichiers de plus de 100 Mo dans Téléchargements, Documents et Bureau (6 par dossier), sans rien supprimer. Supprimez vous-même dans le Finder ce que la liste révèle."
         menu.addItem(optimizeItem)
+
+        menu.addItem(.separator())
+
+        // — Navigation directe : les quatre espaces, la bande dépliable, le tiroir.
+        // Les raccourcis affichés ici ne seraient pas globaux (une menu bar
+        // d'agent ne les enregistre pas) : ils vivent dans les `CommandMenu`
+        // SwiftUI, ce menu reste sans `keyEquivalent`.
+        let sectionsItem = NSMenuItem(title: "🗂  Ouvrir une section", action: nil, keyEquivalent: "")
+        let sectionsMenu = NSMenu(title: "Ouvrir une section")
+        let spacesHeader = NSMenuItem(title: "Espaces de travail", action: nil, keyEquivalent: "")
+        spacesHeader.isEnabled = false
+        sectionsMenu.addItem(spacesHeader)
+        for tab in AppTab.spaces {
+            let item = NSMenuItem(title: tab.title, action: #selector(openSection(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tab.rawValue
+            item.toolTip = tab.helpText
+            sectionsMenu.addItem(item)
+        }
+        sectionsMenu.addItem(.separator())
+
+        let monitorItem = NSMenuItem(title: "Déplier / replier les jauges",
+                                     action: #selector(toggleMonitor), keyEquivalent: "")
+        monitorItem.target = self
+        monitorItem.toolTip = "Anneaux, courbes CPU/RAM et fiche matériel sous le bandeau (⌘⇧M)"
+        sectionsMenu.addItem(monitorItem)
+        let fullMonitor = NSMenuItem(title: "Page Surveillance complète",
+                                     action: #selector(openSection(_:)), keyEquivalent: "")
+        fullMonitor.target = self
+        fullMonitor.representedObject = AppTab.surveillance.rawValue
+        fullMonitor.toolTip = AppTab.surveillance.helpText
+        sectionsMenu.addItem(fullMonitor)
+        sectionsMenu.addItem(.separator())
+
+        let docsHeader = NSMenuItem(title: "Documentation", action: nil, keyEquivalent: "")
+        docsHeader.isEnabled = false
+        sectionsMenu.addItem(docsHeader)
+        for tab in AppTab.docs {
+            let item = NSMenuItem(title: tab.title, action: #selector(openDocument(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tab.rawValue
+            item.toolTip = tab.helpText
+            sectionsMenu.addItem(item)
+        }
+        sectionsItem.submenu = sectionsMenu
+        menu.addItem(sectionsItem)
 
         menu.addItem(.separator())
 
@@ -914,8 +1061,28 @@ final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UN
 
     /// Rouvre et met au premier plan la fenêtre principale de l'application.
     @objc private func openMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        AppState.shared.showMainWindow()
+    }
+
+    /// Ouvre une section précise de la fenêtre depuis la barre de menus.
+    ///
+    /// L'onglet est passé dans `representedObject` (le `rawValue` de `AppTab`) :
+    /// le menu reste ainsi synchronisé avec la liste des onglets SwiftUI.
+    @objc private func openSection(_ sender: NSMenuItem) {
+        guard let slug = sender.representedObject as? String, let tab = AppTab.fromSlug(slug) else { return }
+        AppState.shared.go(tab)
+    }
+
+    /// Ouvre une page de documentation dans le tiroir « ? ».
+    @objc private func openDocument(_ sender: NSMenuItem) {
+        guard let slug = sender.representedObject as? String, let tab = AppTab.fromSlug(slug) else { return }
+        AppState.shared.openDocs(tab)
+    }
+
+    /// Déplie ou replie les jauges détaillées sous le bandeau ambiant.
+    @objc private func toggleMonitor() {
+        AppState.shared.showMainWindow()
+        AppState.shared.monitorExpanded.toggle()
     }
 
     /// Exécute un nettoyage complet sans ouvrir la fenêtre.
@@ -980,54 +1147,30 @@ final class MenuBarDelegate: NSObject, NSMenuDelegate, NSApplicationDelegate, UN
 /// Vue racine de l'application.
 ///
 /// La vue est organisée verticalement :
-///   1. un **en-tête** élégant (logo, titre, bouton d'aide, actualisation) ;
-///   2. un **sélecteur d'onglets** (Surveillance / Nettoyage / Optimisation) ;
-///   3. le **contenu** de l'onglet sélectionné ;
-///   4. le **journal** des actions ;
-///   5. un **pied de page** avec le statut courant.
+///   1. un **en-tête** (logo en verre, titre, bascule documentation, actualisation) ;
+///   2. un **bandeau ambiant** avec CPU / RAM / disque en direct — cliquable, il
+///      déplie les jauges complètes sans quitter l'espace où l'on se trouve ;
+///   3. le **sélecteur des quatre espaces** (Purge, Performance, Applications,
+///      Sécurité) et la phrase de guidage de l'espace actif ;
+///   4. éventuellement le **tiroir de documentation** (Aide, FAQ, À propos) ;
+///   5. le **contenu** de l'espace ou du document choisi ;
+///   6. le **journal** des actions, puis le pied de page.
+///
+/// Le chemin le plus court vers une fonction principale tient en un clic ; la
+/// documentation et les jauges détaillées en deux.
 struct ContentView: View {
 
     /// Instance partagée du service de métriques (singleton).
     @StateObject private var monitor = SystemMonitor.shared
-    /// Onglet sélectionné (par défaut : Surveillance ; `--tab=` en ligne de commande).
-    @State private var selectedTab: Tab = ContentView.defaultTab()
-    /// Affiche ou masque la fenêtre d'aide.
-    @State private var showHelp = false
-
-    /// Les trois onglets disponibles.
-    enum Tab: String, CaseIterable {
-        /// Surveillance des métriques système en temps réel.
-        case surveillance = "Surveillance"
-        /// Nettoyage des caches, fichiers temporaires, logs et corbeille.
-        case nettoyage = "Nettoyage"
-        /// Optimisation : recherche des fichiers volumineux.
-        case optimisation = "Optimisation"
-
-        /// Onglet demandé via l'argument `--tab=xxx` (usage avancé / captures).
-        /// Exemples : `--tab=nettoyage`, `--tab=optimisation`.
-        static func fromCommandLine() -> Tab? {
-            let args = CommandLine.arguments
-            for arg in args {
-                let parts = arg.split(separator: "=", maxSplits: 1).map(String.init)
-                if parts.count == 2, parts[0] == "--tab" {
-                    return Tab(rawValue: parts[1].lowercased().capitalized)
-                }
-            }
-            return nil
-        }
-    }
-
-    /// Onglet initial au lancement (surveillance par défaut).
-    static func defaultTab() -> Tab {
-        return Tab.fromCommandLine() ?? .surveillance
-    }
+    /// Onglet courant : partagé avec les menus AppKit via `AppState`.
+    @StateObject private var app = AppState.shared
 
     var body: some View {
         ZStack {
             // Fond subtil adaptatif (clair / sombre automatique).
             LinearGradient(
                 colors: [
-                    Color(nsColor: .windowBackgroundColor).opacity(0.95),
+                    Color(NSColor.windowBackgroundColor).opacity(0.95),
                     Color.accentColor.opacity(0.06)
                 ],
                 startPoint: .top,
@@ -1037,21 +1180,18 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 header
-                tabSelector
+                statusStrip
+                spaceSelector
+                docsDrawer
                 content
                 footer
             }
         }
-        .frame(minWidth: 720, minHeight: 620)
+        .frame(minWidth: 760, minHeight: 620)
+        .background(WindowResolver())
         .onAppear {
-            // Si lancé avec `--help`, ouvre la fenêtre d'aide automatiquement.
-            showHelp = CommandLine.arguments.contains("--help")
             // Démarre (ou relance) le rafraîchissement automatique des métriques.
             monitor.startLiveUpdates()
-        }
-        .sheet(isPresented: $showHelp) {
-            // Fenêtre d'aide illustrée accessible depuis l'en-tête.
-            HelpView()
         }
     }
 
@@ -1063,31 +1203,21 @@ struct ContentView: View {
     /// et d'actualisation manuelle.
     private var header: some View {
         HStack(spacing: 14) {
-            // Logo de l'application.
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue, Color.purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 52, height: 52)
-                Image(systemName: "macbook.and.iphone")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-            .shadow(color: Color.purple.opacity(0.35), radius: 8, y: 4)
+            // Logo de l'application : la vraie icône du bundle (.icns), donc la
+            // même image que dans le Dock et ⌘-Tab. Sans elle, MMBrandIcon
+            // redessine une pastille vectorielle et le journal de lancement le
+            // signale.
+            MMBrandIcon(tile: "AppIcon", accent: .purple, size: 52,
+                        fallbackSymbol: "macbook.and.iphone")
 
             // Titre et sous-titre.
             VStack(alignment: .leading, spacing: 2) {
                 Text("MonitorMyMac")
                     .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundColor(Color.mmLabel)
                 Text("Surveillez, nettoyez et optimisez votre Mac en un clin d’œil")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color.mmSecondaryLabel)
             }
 
             Spacer()
@@ -1098,25 +1228,33 @@ struct ContentView: View {
                     .controlSize(.small)
             }
 
-            // Bouton d'aide (ouvre la fenêtre d'aide illustrée).
+            // Bouton d'aide : lève ou baisse le tiroir de documentation.
             Button {
-                showHelp = true
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if app.docsOpen {
+                        app.closeDocs()
+                    } else {
+                        app.openDocs(.help)
+                    }
+                }
             } label: {
-                Image(systemName: "questionmark.circle.fill")
+                Image(systemName: (app.docsOpen ? "questionmark.circle.fill" : "questionmark.circle").mmSafeSymbol)
                     .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(app.docsOpen ? Color.mmIndigo : Color.mmSecondaryLabel)
             }
             .buttonStyle(.plain)
-            .help("Aide et guide d'utilisation")
+            .help(app.docsOpen
+                ? "Refermer le tiroir Aide / FAQ / À propos (⌘⇧H)"
+                : "Ouvrir le tiroir Aide / FAQ / À propos (⌘⇧H)")
 
             // Bouton d'actualisation manuelle.
             Button {
                 monitor.refreshDeviceInfo()
                 monitor.refreshMetrics()
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Image(systemName: ("arrow.clockwise").mmSafeSymbol)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundColor(Color.mmLabel)
             }
             .buttonStyle(.bordered)
             .help("Actualiser immédiatement les statistiques")
@@ -1127,58 +1265,207 @@ struct ContentView: View {
     }
 
     // -------------------------------------------------------------------------
-    //  Sélecteur d'onglets
+    //  Bandeau ambiant de surveillance
     // -------------------------------------------------------------------------
 
-    /// Barre d'onglets avec animation douce et icônes illustratives.
-    private var tabSelector: some View {
-        HStack(spacing: 8) {
-            ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        selectedTab = tab
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: icon(for: tab))
-                        Text(tab.rawValue)
-                    }
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            selectedTab == tab
-                                ? Color.accentColor
-                                : Color.gray.opacity(0.12)
-                        )
-                    )
-                    .foregroundStyle(selectedTab == tab ? .white : .primary)
+    /// Barre de mesures toujours visible : CPU, mémoire et disque en direct.
+    ///
+    /// La surveillance n'est plus un onglet : les trois chiffres qui comptent
+    /// sont là, en tête de fenêtre, dans n'importe quel espace. Un clic sur le
+    /// bandeau déplie les jauges complètes (anneaux, historical CPU/RAM, fiche
+    /// matériel) **sans quitter l'espace où l'on se trouve** — c'est ce qui
+    /// supprime l'aller-retour entre « Surveillance » et « Purge ».
+    private var statusStrip: some View {
+        HStack(spacing: 14) {
+            StripMetric(title: "Processeur",
+                        symbol: "cpu",
+                        ratio: monitor.cpuUsage,
+                        value: Fmt.percent(monitor.cpuUsage),
+                        detail: "\(monitor.coreCount) cœurs · \(monitor.cpuName)",
+                        color: .blue)
+
+            StripMetric(title: "Mémoire",
+                        symbol: "memorychip",
+                        ratio: monitor.memoryUsage,
+                        value: Fmt.percent(monitor.memoryUsage),
+                        detail: monitor.memoryDetail,
+                        color: .purple)
+
+            StripMetric(title: "Stockage",
+                        symbol: "internaldrive",
+                        ratio: monitor.diskUsage,
+                        value: Fmt.percent(monitor.diskUsage),
+                        detail: monitor.diskDetail,
+                        color: .green)
+
+            // Ligne matériel : ce que la machine est, pas ce qu'elle fait.
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(monitor.modelInfo)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color.mmLabel)
+                    .lineLimit(1)
+                Text("\(monitor.osInfo) · \(monitor.totalMemoryGB) · levé depuis \(monitor.uptime)")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color.mmTertiaryLabel)
+                    .lineLimit(1)
+            }
+            .frame(width: 210, alignment: .trailing)
+            .help("Modèle, système, RAM physique et durée d'activité (sysctl, kern.boottime).")
+
+            // Poignée de dépliage : la surface des jauges détaillées.
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    app.monitorExpanded.toggle()
                 }
-                .buttonStyle(.plain)
-                .help(helpText(for: tab))
+            } label: {
+                Image(systemName: (app.monitorExpanded ? "chevron.up" : "chevron.down").mmSafeSymbol)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(app.monitorExpanded ? .white : Color.mmSecondaryLabel)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        ZStack {
+                            Circle().fill(Color.mmLabel.opacity(0.07))
+                            if app.monitorExpanded {
+                                Circle().fill(Theme.gradient(Color.blue))
+                            }
+                        }
+                    )
+            }
+            .buttonStyle(.plain)
+            .help(app.monitorExpanded
+                ? "Replier les jauges détaillées (⌘⇧M)"
+                : "Déplier les jauges détaillées : anneaux, courbes, fiche matériel (⌘⇧M)")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(Color.mmWindowBackground.opacity(0.001))
+        .mmGlass(cornerRadius: 16, kind: .bar)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Le bandeau entier est cliquable, pas seulement la chevron.
+            withAnimation(.easeInOut(duration: 0.22)) {
+                app.monitorExpanded.toggle()
             }
         }
+        .help("Surveillance en continu : un clic déplie les jauges complètes (⌘⇧M).")
+        .padding(.horizontal, 24)
     }
 
-    /// Sélectionne le symbole SF associé à un onglet.
-    private func icon(for tab: Tab) -> String {
-        switch tab {
-        case .surveillance: return "gauge.with.dots.needle.50percent"
-        case .nettoyage: return "bubbles.and.sparkles"
-        case .optimisation: return "bolt.circle.fill"
+    // -------------------------------------------------------------------------
+    //  Sélecteur des quatre espaces
+    // -------------------------------------------------------------------------
+
+    /// Sélecteur : quatre espaces de travail, chacun en pastille « verre liquide ».
+    ///
+    /// Le sélecteur ne montre plus les huit destinations d'un coup : quatre
+    /// espaces ici, la documentation réunie dans le tiroir « ? » en tête, et la
+    /// surveillance dans le bandeau ambiant au-dessus. La phrase de guidage
+    /// rappelle ce que l'espace actif permet de faire, avant même de le lire.
+    private var spaceSelector: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                ForEach(AppTab.spaces) { tab in
+                    SpacePill(tab: tab, isOn: app.tab == tab && !app.docsOpen) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            app.go(tab)
+                        }
+                    }
+                }
+            }
+            // Groupe centré : étirer quatre pastilles sur toute la largeur de la
+            // fenêtre créait des vides de 300 points entre deux espaces.
+            .frame(maxWidth: 780)
+            .frame(maxWidth: .infinity)
+
+            // Guidage : la phrase de l'espace courant (ou du document ouvert).
+            HStack(spacing: 6) {
+                Image(systemName: ("lightbulb").mmSafeSymbol)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(app.tab.accent)
+                Text(app.tab.guidance)
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.mmSecondaryLabel)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: 780)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 4)
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
     }
 
-    /// Description contextuelle (bulle d'aide) pour chaque onglet.
-    private func helpText(for tab: Tab) -> String {
-        switch tab {
-        case .surveillance:
-            return "Consultation en temps réel du processeur, de la mémoire et du disque."
-        case .nettoyage:
-            return "Supprime les caches, fichiers temporaires, logs système et la corbeille."
-        case .optimisation:
-            return "Recherche les fichiers volumineux afin de libérer de l'espace disque."
+    // -------------------------------------------------------------------------
+    //  Tiroir de documentation
+    // -------------------------------------------------------------------------
+
+    /// Tiroir « ? » : Aide, FAQ et À propos, ouvert depuis l'en-tête.
+    ///
+    /// Ces trois surfaces ne sont pas des espaces de travail — on les consulte
+    /// ponctuellement. Les empiler dans un tiroir garde le sélecteur à quatre
+    /// entrées et évite de choisir entre « Purge » et « FAQ » à chaque lancement.
+    @ViewBuilder
+    private var docsDrawer: some View {
+        if app.docsOpen {
+            HStack(spacing: 10) {
+                Image(systemName: ("book").mmSafeSymbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.mmSecondaryLabel)
+                Text("Documentation")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color.mmSecondaryLabel)
+
+                ForEach(AppTab.docs) { tab in
+                    Button {
+                        app.openDocs(tab)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: (tab.icon).mmSafeSymbol)
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(tab.shortTitle)
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            ZStack {
+                                Capsule().fill(Color.mmLabel.opacity(0.07))
+                                if app.tab == tab {
+                                    Capsule().fill(Theme.gradient(tab.accent))
+                                }
+                            }
+                        )
+                        .foregroundColor(app.tab == tab ? .white : Color.mmLabel)
+                    }
+                    .buttonStyle(.plain)
+                    .help(tab.helpText)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { app.closeDocs() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: ("xmark").mmSafeSymbol)
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Fermer")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(Color.mmSecondaryLabel)
+                }
+                .buttonStyle(.plain)
+                .help("Refermer le tiroir et retrouver l'espace de travail (⌘⇧H)")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .mmGlass(cornerRadius: 14, kind: .card)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 8)
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 
@@ -1186,23 +1473,61 @@ struct ContentView: View {
     //  Contenu par onglet
     // -------------------------------------------------------------------------
 
-    /// Affiche le contenu de l'onglet sélectionné puis le journal en dessous.
+    /// Affiche le contenu de l'espace (ou du document) sélectionné, puis le journal.
+    ///
+    /// La page « Surveillance » complète reste une destination à part entière —
+    /// elle est atteignable par `--tab=surveillance`, les menus et le bandeau
+    /// déplié — mais n'apparaît plus dans le sélecteur : son contenu est
+    /// exactement la surface que le bandeau déplie, et l'afficher deux fois
+    /// chargerait la fenêtre.
     @ViewBuilder
     private var content: some View {
         ScrollView {
             VStack(spacing: 16) {
-                switch selectedTab {
-                case .surveillance:
+                // Le bandeau déplié pose les jauges **au-dessus** de l'espace en
+                // cours : la navigation ne bouge pas, on lit et on agit sans
+                // changer de page.
+                if app.monitorExpanded && app.tab != .surveillance {
                     monitoringGrid
-                case .nettoyage:
-                    CleanupView(monitor: monitor)
-                case .optimisation:
-                    OptimizationView(monitor: monitor)
+                }
+
+                switch app.tab {
+                case .surveillance:
+                    if !app.monitorExpanded {
+                        monitoringGrid
+                    } else {
+                        spaceContent
+                    }
+                default:
+                    spaceContent
                 }
 
                 logPanel
             }
             .padding(24)
+        }
+    }
+
+    /// Contenu de la destination courante, hors jauges de surveillance.
+    @ViewBuilder
+    private var spaceContent: some View {
+        switch app.tab {
+        case .surveillance:
+            EmptyView()
+        case .purge:
+            PurgeView()
+        case .performance:
+            PerformanceView()
+        case .applications:
+            AppsView()
+        case .security:
+            SecurityView()
+        case .help:
+            HelpTabView()
+        case .faq:
+            FAQTabView()
+        case .about:
+            AboutTabView()
         }
     }
 
@@ -1266,13 +1591,13 @@ struct ContentView: View {
             HStack {
                 Label("Journal", systemImage: "list.bullet.rectangle")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color.mmSecondaryLabel)
                 Spacer()
                 if !monitor.log.isEmpty {
                     Button("Effacer") { monitor.clearLog() }
                         .buttonStyle(.plain)
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color.mmSecondaryLabel)
                         .help("Vider le journal des actions")
                 }
             }
@@ -1280,7 +1605,7 @@ struct ContentView: View {
             ScrollView {
                 Text(monitor.log.isEmpty ? "Aucune action pour le moment." : monitor.log)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color.mmSecondaryLabel)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
                     .padding(10)
@@ -1306,15 +1631,139 @@ struct ContentView: View {
                 .shadow(color: .green.opacity(0.7), radius: 3)
             Text(monitor.statusMessage)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundColor(Color.mmSecondaryLabel)
             Spacer()
-            Text("v2.1.0 · 100 % natif · auteur : Martial Zinsou")
+            Text("v\(AppInfo.version) · 100 % natif · auteur : \(AppInfo.author)")
                 .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .foregroundColor(Color.mmTertiaryLabel)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+        .mmGlass(cornerRadius: 0, kind: .bar)
+    }
+}
+
+// ============================================================================
+//  MARK: - Éléments de navigation
+// ============================================================================
+
+/// Pastille d'un espace de travail : tuile « Liquid Glass » + libellé court.
+///
+/// L'icône vient des planches fournies, détourées et composées en tuiles
+/// auto-suffisantes (`assets/icons/tuiles`, embarquées dans le bundle) ; si la
+/// ressource manque, `MMBrandIcon` redessine la pastille en vecteur. Le libellé
+/// passe en gras quand l'espace est actif, seule indication textuelle de l'état
+/// sélectionné.
+struct SpacePill: View {
+    /// Espace représenté.
+    let tab: AppTab
+    /// L'espace est-il celui qui tient la scène ?
+    let isOn: Bool
+    /// Action déclenchée au clic.
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                MMBrandIcon(tile: tab.brandTile, accent: tab.accent, size: 40,
+                            fallbackSymbol: tab.icon, isOn: isOn)
+                    // La tuile bitmap ne change pas d'aspect selon l'état : sans
+                    // ce voile, les quatre pastilles rivalisaient d'intensité et
+                    // l'espace actif ne se distinguait plus que par son liseré.
+                    .opacity(isOn ? 1 : 0.72)
+                Text(tab.shortTitle)
+                    .font(.system(size: 12, weight: isOn ? .bold : .medium))
+                    .foregroundColor(isOn ? tab.accent : Color.mmSecondaryLabel)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            // La tuile s'allume : sans fond, seule la pastille indiquait l'espace
+            // actif et les quatre libellés flottaient sur le même plan.
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.mmLabel.opacity(isOn ? 0.09 : 0.03))
+                    if isOn {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(tab.accent.opacity(0.55), lineWidth: 1)
+                    }
+                }
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tab.helpText)
+        .accessibility(label: Text("\(tab.title) — \(tab.helpText)"))
+    }
+}
+
+/// Mini-jauge du bandeau ambiant : libellé, valeur, barre de pression, détail.
+///
+/// Elle tient le rôle de la carte `GaugeCard` dans un volume de quelques lignes
+/// — assez pour un coup d'œil, sans obligations de dépliage. Les seuils de
+/// couleur sont les mêmes que ceux du moteur mémoire (`MemorySnapshot`) afin
+/// qu'un même état rende la même teinte d'un bout à l'autre de l'interface.
+struct StripMetric: View {
+    /// Libellé de la mesure (« Processeur », « Mémoire », « Stockage »).
+    let title: String
+    /// Symbole SF de la mesure.
+    let symbol: String
+    /// Ratio de 0.0 à 1.0.
+    let ratio: Double
+    /// Valeur condensée affichée en gras (« 42 % »).
+    let value: String
+    /// Détail lisible (nbre de cœurs, Go utilisés, espace libre…).
+    let detail: String
+    /// Couleur de la barre et de l'icône.
+    let color: Color
+
+    /// Seuil à partir duquel la pression devient orange, puis rouge.
+    private var stateColor: Color {
+        switch min(max(ratio, 0), 1) {
+        case ..<0.60: return color
+        case ..<0.80: return .orange
+        default:      return .red
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Image(systemName: (symbol).mmSafeSymbol)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(stateColor)
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Color.mmTertiaryLabel)
+                    .textCase(.uppercase)
+                Spacer(minLength: 0)
+                Text(value)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(Color.mmLabel)
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.mmLabel.opacity(0.08))
+                    Capsule()
+                        .fill(LinearGradient(colors: [stateColor.opacity(0.55), stateColor],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(0, proxy.size.width * min(max(ratio, 0), 1)))
+                        .animation(.easeOut(duration: 0.5), value: ratio)
+                }
+            }
+            .frame(height: 6)
+
+            Text(detail)
+                .font(.system(size: 10))
+                .foregroundColor(Color.mmSecondaryLabel)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help("\(title) — \(detail)")
     }
 }
 
@@ -1362,38 +1811,34 @@ struct GaugeCard: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                     Text("%")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(Color.mmSecondaryLabel)
                 }
             }
             .frame(width: 66, height: 66)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .foregroundStyle(color)
+                    Image(systemName: (icon).mmSafeSymbol)
+                        .foregroundColor(color)
                     Text(title)
                         .font(.system(size: 14, weight: .bold))
                 }
                 Text(subtitle)
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color.mmSecondaryLabel)
                     .lineLimit(1)
                     .help(subtitle)
                 Text(footer)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(color)
+                    .foregroundColor(color)
             }
             Spacer(minLength: 0)
         }
         .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-        )
+        .mmGlass(cornerRadius: 18, kind: .card)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                .stroke(Color.mmSeparator.opacity(0.7), lineWidth: 1)
         )
     }
 }
@@ -1418,15 +1863,15 @@ struct DiskCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // En-tête : icône, titre, pourcentage.
             HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
+                Image(systemName: (icon).mmSafeSymbol)
+                    .foregroundColor(color)
                     .font(.system(size: 16, weight: .semibold))
                 Text(title)
                     .font(.system(size: 14, weight: .bold))
                 Spacer()
                 Text("\(Int(ratio * 100)) %")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(color)
+                    .foregroundColor(color)
             }
 
             // Barre de progression.
@@ -1446,22 +1891,16 @@ struct DiskCard: View {
 
             Text(footer)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundColor(Color.mmSecondaryLabel)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardBackground)
     }
 
-    /// Fond de carte arrondi avec ombre légère.
+    /// Fond de carte : verre AppKit partagé (voir MMCardBackground).
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
+        MMCardBackground()
     }
 }
 
@@ -1483,8 +1922,8 @@ struct SystemCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // En-tête de la carte.
             HStack {
-                Image(systemName: "desktopcomputer")
-                    .foregroundStyle(.orange)
+                Image(systemName: ("desktopcomputer").mmSafeSymbol)
+                    .foregroundColor(.orange)
                     .font(.system(size: 16, weight: .semibold))
                 Text(title)
                     .font(.system(size: 14, weight: .bold))
@@ -1508,7 +1947,7 @@ struct SystemCard: View {
         HStack {
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundColor(Color.mmSecondaryLabel)
                 .frame(width: 56, alignment: .leading)
             Text(value)
                 .font(.system(size: 11, weight: .medium))
@@ -1518,15 +1957,9 @@ struct SystemCard: View {
         }
     }
 
-    /// Fond de carte arrondi avec ombre légère.
+    /// Fond de carte : verre AppKit partagé (voir MMCardBackground).
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
+        MMCardBackground()
     }
 }
 
@@ -1552,7 +1985,7 @@ struct HistoryChartCard: View {
                 Spacer()
                 Text("2 dernières minutes")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(Color.mmTertiaryLabel)
             }
 
             HistoryChart(samples: cpuSamples, color: .blue, title: "Processeur")
@@ -1562,15 +1995,9 @@ struct HistoryChartCard: View {
         .background(cardBackground)
     }
 
-    /// Fond de carte arrondi avec ombre légère.
+    /// Fond de carte : verre AppKit partagé (voir MMCardBackground).
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
+        MMCardBackground()
     }
 }
 
@@ -1591,12 +2018,12 @@ struct HistoryChart: View {
             HStack {
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(Color.mmSecondaryLabel)
                 Spacer()
                 if let last = samples.last {
                     Text("\(Int(last * 100)) %")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(color)
+                        .foregroundColor(color)
                 }
             }
 
@@ -1660,302 +2087,45 @@ struct SparklinePath: Shape {
 }
 
 // ============================================================================
-//  MARK: - Vues d'action (nettoyage / optimisation)
-//  ============================================================================
-
-/// Bouton d'action élégant et réutilisable.
-///
-/// Présente une icône colorée, un titre, un sous-titre et une flèche, le tout
-/// dans une carte arrondie avec ombre portée.
-struct ActionButton: View {
-    /// Titre principal de l'action.
-    let title: String
-    /// Sous-titre descriptif.
-    let subtitle: String
-    /// Symbole SF de l'action.
-    let icon: String
-    /// Couleur de l'icône et du dégradé.
-    let color: Color
-    /// Bloc exécuté au clic.
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                // Pastille iconographique colorée.
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(
-                            LinearGradient(colors: [color, color.opacity(0.75)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
-                        .frame(width: 44, height: 44)
-                    Image(systemName: icon)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .shadow(color: color.opacity(0.35), radius: 6, y: 3)
-
-                // Texte de l'action.
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .bold))
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// ============================================================================
-//  MARK: - Onglet Nettoyage
+//  MARK: - Carte « rappel hebdomadaire »
 // ============================================================================
 
-/// Contenu de l'onglet **Nettoyage**.
+/// Interrupteur du **rappel hebdomadaire** de nettoyage.
 ///
-/// Propose le bouton « Nettoyage intelligent » (caches, fichiers temporaires,
-/// logs système, corbeille), trois indicateurs détaillant la portée du
-/// nettoyage et l'interrupteur des rappels hebdomadaires.
-struct CleanupView: View {
-    /// Service observé (métriques et actions).
+/// Déplacé ici de l'ancien onglet « Nettoyage » : la fonctionnalité (une
+/// notification chaque dimanche à 10 h, réglée dans `SystemMonitor`) reste
+/// accessible, mais depuis l'onglet Purge, qui est devenu le vrai poste de
+/// nettoyage. L'état est persisté dans `UserDefaults`.
+struct ReminderCard: View {
+    /// Service observé (porte le réglage et programme la notification).
     @ObservedObject var monitor: SystemMonitor
 
     var body: some View {
-        VStack(spacing: 16) {
-            ActionButton(
-                title: "Nettoyage intelligent",
-                subtitle: "Caches, fichiers temporaires, logs système et corbeille",
-                icon: "bubbles.and.sparkles.fill",
-                color: .pink
-            ) {
-                monitor.runCleanup()
-            }
-
-            // Indicateurs descriptifs de la portée du nettoyage.
-            HStack(spacing: 12) {
-                tipRow(icon: "clock.badge.checkmark", text: "Temp > 60 min")
-                tipRow(icon: "folder.badge.gearshape", text: "Caches > 2 h")
-                tipRow(icon: "trash", text: "Corbeille vidée")
-            }
-
-            // Interrupteur des rappels hebdomadaires.
-            reminderToggle
-        }
-    }
-
-    /// Interrupteur d'activation du **rappel hebdomadaire** de nettoyage.
-    ///
-    /// Lorsque activé, une notification est programmée chaque dimanche à 10 h.
-    private var reminderToggle: some View {
-        Toggle(isOn: $monitor.remindersEnabled) {
-            HStack(spacing: 8) {
-                Image(systemName: monitor.remindersEnabled ? "bell.badge.fill" : "bell.badge")
-                    .font(.system(size: 15))
-                    .foregroundStyle(monitor.remindersEnabled ? Color.pink : Color.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rappel hebdomadaire de nettoyage")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Une notification chaque dimanche à 10 h")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+        SectionCard(title: "Rappel hebdomadaire",
+                    subtitle: "Une notification chaque dimanche à 10 h ; y cliquer lance le nettoyage express.",
+                    systemImage: "bell.badge.fill",
+                    accent: .pink,
+                    trailing: {
+                        Pill(text: monitor.remindersEnabled ? "activé" : "désactivé",
+                             color: monitor.remindersEnabled ? .pink : .gray)
+                    }) {
+            Toggle(isOn: $monitor.remindersEnabled) {
+                HStack(spacing: 8) {
+                    Image(systemName: (monitor.remindersEnabled ? "bell.badge.fill" : "bell.slash").mmSafeSymbol)
+                        .font(.system(size: 15))
+                        .foregroundColor(monitor.remindersEnabled ? Color.pink : Color.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Me rappeler de nettoyer")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Dimanche · 10 h · notification système (aucune donnée envoyée)")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.mmSecondaryLabel)
+                    }
+                    Spacer()
                 }
-                Spacer()
             }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.gray.opacity(0.07))
-            )
-        }
-        .toggleStyle(.switch)
-        .padding(.horizontal, 2)
-        .help("Active ou désactive le rappel hebdomadaire de nettoyage (dimanche 10 h)")
-    }
-
-    /// Petite pastille descriptive utilisée sous le bouton principal.
-    private func tipRow(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .foregroundStyle(.pink)
-                .font(.system(size: 12))
-            Text(text)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(Color.gray.opacity(0.08)))
-    }
-}
-
-// ============================================================================
-//  MARK: - Onglet Optimisation
-// ============================================================================
-
-/// Contenu de l'onglet **Optimisation**.
-///
-/// Propose le bouton « Analyse de l'espace » (recherche des fichiers
-/// volumineux) accompagné de trois pastilles descriptives.
-struct OptimizationView: View {
-    /// Service observé (métriques et actions).
-    @ObservedObject var monitor: SystemMonitor
-
-    var body: some View {
-        VStack(spacing: 16) {
-            ActionButton(
-                title: "Analyse de l'espace",
-                subtitle: "Recherche les fichiers volumineux (> 100 Mo) dans vos dossiers",
-                icon: "bolt.fill",
-                color: .orange
-            ) {
-                monitor.runOptimization()
-            }
-
-            // Indicateurs descriptifs.
-            HStack(spacing: 12) {
-                tipRow(icon: "rectangle.fill.on.rectangle.fill", text: "Gros fichiers détectés")
-                tipRow(icon: "arrow.up.right.circle", text: "Espace récupérable")
-                tipRow(icon: "checkmark.seal", text: "Sans risque pour vos données")
-            }
-        }
-    }
-
-    /// Petite pastille descriptive utilisée sous le bouton principal.
-    private func tipRow(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .foregroundStyle(.orange)
-                .font(.system(size: 12))
-            Text(text)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(Color.gray.opacity(0.08)))
-    }
-}
-
-// ============================================================================
-//  MARK: - Aide illustrée
-// ============================================================================
-
-/// Fenêtre d'aide modale décrivant chaque fonctionnalité de l'application.
-///
-/// L'aide est organisée en sections illustrées par des symboles SF :
-/// surveillance, nettoyage, optimisation, barre de menus et rappels.
-struct HelpView: View {
-    /// Fermeture de la fenêtre d'aide.
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Titre de la fenêtre.
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: "macbook.and.iphone")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                VStack(alignment: .leading) {
-                    Text("Aide et guide d'utilisation")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                    Text("Découvrez tout ce que MonitorMyMac peut faire pour vous")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .help("Auteur : Martial Zinsou")
-                }
-                Spacer()
-            }
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    helpSection(
-                        icon: "gauge.with.dots.needle.50percent",
-                        color: .blue,
-                        title: "Surveillance en temps réel",
-                        description: "Le tableau de bord actualise automatiquement le processeur, la mémoire vive et l'espace disque toutes les 2 secondes. Les courbes d'historique au bas de la page montrent l'évolution CPU et RAM sur les 2 dernières minutes."
-                    )
-                    helpSection(
-                        icon: "bubbles.and.sparkles.fill",
-                        color: .pink,
-                        title: "Nettoyage intelligent",
-                        description: "Un clic supprime en toute sécurité les fichiers temporaires (/tmp > 60 min), les caches utilisateur (.cache et .log > 2 h), les logs système (> 24 h) et vide la corbeille. Aucun fichier personnel n'est touché."
-                    )
-                    helpSection(
-                        icon: "bolt.fill",
-                        color: .orange,
-                        title: "Optimisation de l'espace",
-                        description: "« Analyse de l'espace » liste les fichiers de plus de 100 Mo dans vos dossiers Téléchargements, Documents et Bureau. Vous pouvez ensuite décider vous-même de les supprimer dans le Finder."
-                    )
-                    helpSection(
-                        icon: "menubar.rectangle",
-                        color: .green,
-                        title: "Barre de menus",
-                        description: "Une icône reste visible en haut de l'écran avec le taux CPU en direct. Le menu donne accès aux statistiques, à un Nettoyage rapide (⌘⇧N) et à une Optimisation rapide (⌘⇧O), même fenêtre fermée."
-                    )
-                    helpSection(
-                        icon: "bell.badge.fill",
-                        color: .purple,
-                        title: "Rappels hebdomadaires",
-                        description: "Activez le rappel dans l'onglet Nettoyage : une notification chaque dimanche à 10 h vous suggère un nettoyage. Cliquer sur la notification lance immédiatement le nettoyage automatique."
-                    )
-                }
-                .padding(.vertical, 4)
-            }
-
-            Divider()
-
-            HStack {
-                Text("Créé par Martial Zinsou · 100 % natif macOS")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Fermer") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(24)
-        .frame(width: 520, height: 540)
-    }
-
-    /// Section d'aide : icône + titre + description.
-    private func helpSection(icon: String, color: Color, title: String, description: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundStyle(color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .toggleStyle(.switch)
+            .help("Active ou désactive le rappel hebdomadaire de nettoyage (dimanche 10 h)")
         }
     }
 }
@@ -1974,6 +2144,50 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     /// Délègue le démarrage au singleton de la barre de menus.
     func applicationDidFinishLaunching(_ notification: Notification) {
         MenuBarDelegate.shared.applicationDidFinishLaunching(notification)
+
+        // `--appearance=dark|light` force le mode Sombre/Clair de la fenêtre
+        // sans toucher au réglage système de l'utilisateur.
+        if let appearance = ShotCapture.requestedAppearance() {
+            NSApp.appearance = appearance
+        }
+
+        // Mode capture : `--shots[=DIR]` photographie chaque destination après
+        // avoir réellement balayé, puis quitte. En dehors de ce mode, rien ne change.
+        if let directory = ShotCapture.requestedDirectory() {
+            // La fenêtre doit être montée dans la hiérarchie AppKit avant de
+            // pouvoir être résolue et redimensionnée.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                ShotCapture.run(in: directory)
+            }
+        }
+
+        // Signaler les SF Symbols que le système ne connaît pas. Une icône
+        // remplacée se voit à l'écran, mais pas son absence : sans cette ligne
+        // dans le journal, un repli silencieux passerait pour un rendu normal.
+        // Le délai laisse le temps aux vues de résoudre leurs symboles.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            let degraded = MMSymbol.degradedNames
+            if degraded.isEmpty {
+                SystemMonitor.shared.appendLog("Icônes : aucun SF Symbol absent de ce macOS.")
+            } else {
+                SystemMonitor.shared.appendLog("Icônes : \(degraded.count) symbole(s) absent(s) de ce macOS, remplacés — \(degraded.joined(separator: ", ")).")
+            }
+            // Même logique pour les visuels de marque bitmap : une tuile
+            // manquante ne casse rien (repli vectoriel), mais elle ne doit pas
+            // passer pour le rendu attendu. Les six ressources sont sondées ici
+            // plutôt qu'au rendu des vues : le relevé porte donc sur le pack
+            // complet, pas seulement sur ce qui était à l'écran à 2,5 s
+            // (limite qui, elle, reste vraie pour les SF Symbols ci-dessus).
+            let attendues = ["AppIcon", "moniteur-systeme", "purge", "performance",
+                             "applications", "securite"]
+            attendues.forEach { _ = MMBrandArt.image($0) }
+            let absentes = MMBrandArt.manquantes
+            if absentes.isEmpty {
+                SystemMonitor.shared.appendLog("Visuels de marque : icône et tuiles chargées depuis le bundle.")
+            } else {
+                SystemMonitor.shared.appendLog("Visuels de marque : ressource(s) absente(s) du bundle — \(absentes.joined(separator: ", ")). Pastilles vectorielles utilisées à la place.")
+            }
+        }
     }
 
     /// Permet à l'application de continuer de tourner dans la barre de menus.
@@ -1989,9 +2203,16 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
 /// Point d'entrée de l'application macOS.
 ///
 /// Déclare la fenêtre principale, intègre le délégué du cycle de vie (barre de
-/// menus) et ajoute un menu « Actions » avec des raccourcis clavier pratiques :
-///   • ⌘⇧N — Nettoyage rapide ;
-///   • ⌘⇧O — Optimisation rapide.
+/// menus) et un menu « Actions » dont les raccourcis ouvrent réellement la
+/// section concernée **et** lancent le travail associé :
+///   • ⌘⇧N — nettoyage express ;   • ⌘⇧O — optimisation express ;
+///   • ⌘⇧P — balayage complet de la Purge ;     • ⌘⇧R — purge de la RAM ;
+///   • ⌘⇧A — inventaire des applications ;      • ⌘⇧M — inventaire des extensions ;
+///   • ⌘⇧S — balayage des données de navigation ; • ⌘⇧H — onglet Aide.
+///
+/// L'application accepte aussi deux modes utilitaires en ligne de commande :
+/// `--tab=xxx` pour démarrer sur un onglet précis et `--shots=DIR` pour
+/// photographier chaque onglet après avoir réellement balayé (voir ShotCapture).
 @main
 struct MonitorMyMacApp: App {
     /// Adaptateur du délégué du cycle de vie de l'application.
@@ -2003,17 +2224,87 @@ struct MonitorMyMacApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(replacing: .newItem) {}
+
             // Raccourcis clavier utilitaires.
             CommandMenu("Actions") {
-                Button("Nettoyage rapide") {
+                Button("Nettoyage express") {
                     SystemMonitor.shared.runCleanup()
                 }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
+                .help("Les quatre collectes automatiques : /tmp au-delà de 60 min, caches utilisateur au-delà de 2 h, journaux système au-delà de 24 h, puis vidage de la corbeille. Les trois premières vont à la corbeille (réversible) ; la dernière est définitive.")
 
-                Button("Optimisation rapide") {
+                Button("Repérer les fichiers volumineux") {
                     SystemMonitor.shared.runOptimization()
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+                .help("Dresse la liste des fichiers de plus de 100 Mo dans Téléchargements, Documents et Bureau (6 par dossier), sans rien supprimer : aucune place n'est libérée ici, le libellé « optimisation » serait trompeur. Supprimez vous-même dans le Finder ce que la liste révèle.")
+
+                Divider()
+
+                Button("Balayer la purge (7 familles)") {
+                    AppState.shared.go(.purge)
+                    PurgeModel.shared.scan()
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .help("Ouvre l'espace Purge et relance les sept collectes : caches utilisateur, logs et diagnostics, restes de mises à jour, fichiers volumineux et anciens, doublons (SHA-256), corbeilles et traductions inutilisées. Lecture seule — rien n'est supprimé sans une coche explicite.")
+
+                Button("Purger la RAM") {
+                    AppState.shared.go(.performance)
+                    PerformanceModel.shared.purgeMemory()
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .help("`/usr/sbin/purge` : macOS demande une authentification administrateur, la commande est réservée à root. Le gain mesuré s'affiche dans l'espace Performance.")
+
+                Divider()
+
+                Button("Inventorier les applications") {
+                    AppState.shared.go(.applications)
+                    AppsModel.shared.scanApps()
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .help("Parcourt /Applications, /Applications/Utilities, ~/Applications, ~/Downloads et /System/Applications : nom, identifiant, version, taille, dernier accès, origine App Store, signature de code et exécution en cours. Prérequis de l'analyse anti-malware, qui compare les bundles inventoriés.")
+
+                Button("Inventorier les extensions") {
+                    AppState.shared.go(.applications)
+                    AppsModel.shared.scanExtensions()
+                }
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+                .help("Lit `pluginkit` et les dossiers d'extensions des navigateurs : greffons macOS, widgets et modules de Safari, Chrome ou Firefox. Lecture seule, aucun greffon n'est désactivé ni retiré.")
+
+                Button("Balayer les données de navigation") {
+                    AppState.shared.go(.security)
+                    SecurityModel.shared.scanTraces()
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .help("Mesure cookies, historiques, caches et stockage local des navigateurs installés. Les navigateurs encore ouverts sont signalés mais épargnés : leurs bases sont verrouillées.")
+            }
+
+            // Le second menu reste court : `@ViewBuilder` accepte dix enfants au
+            // maximum, et mélanger navigation et actions alourdirait le menu.
+            CommandMenu("Navigation") {
+                Button("Espace 1 · Purge") { AppState.shared.go(.purge) }
+                    .keyboardShortcut("1", modifiers: [.command, .shift])
+                Button("Espace 2 · Performance") { AppState.shared.go(.performance) }
+                    .keyboardShortcut("2", modifiers: [.command, .shift])
+                Button("Espace 3 · Applications") { AppState.shared.go(.applications) }
+                    .keyboardShortcut("3", modifiers: [.command, .shift])
+                Button("Espace 4 · Sécurité") { AppState.shared.go(.security) }
+                    .keyboardShortcut("4", modifiers: [.command, .shift])
+                Divider()
+                Button("Jauges de surveillance") { AppState.shared.monitorExpanded.toggle() }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                Button("Tiroir de documentation") {
+                    if AppState.shared.docsOpen {
+                        AppState.shared.closeDocs()
+                    } else {
+                        AppState.shared.openDocs(.help)
+                    }
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Aide") { AppState.shared.openDocs(.help) }
+                Button("FAQ") { AppState.shared.openDocs(.faq) }
+                Button("À propos") { AppState.shared.openDocs(.about) }
             }
         }
     }
